@@ -6,21 +6,40 @@ from enum import Enum
 from get_props import get_prop_info
 import time
 
+from dataclasses import dataclass
+
+
+@dataclass
+class BetEvaluation:
+    player_name: str
+    stat_name: str
+    bet_target: float
+    over_under: str
+    hits: int
+    misses: int
+    games_active: int
+    games_missed: int
+    hit_rate: float
+    num_games: int
+
+
 # Enum for Over/Under
 class OverUnder(Enum):
     OVER = "over"
     UNDER = "under"
 
+
 STAT_MAPPING = {
     "Points": "PTS",
-    "Rebounds": "REB",              # Total rebounds
-    "Offensive Rebounds": "OREB",   # Offensive rebounds
+    "Rebounds": "REB",  # Total rebounds
+    "Offensive Rebounds": "OREB",  # Offensive rebounds
     "Assists": "AST",
     "Steals": "STL",
     "Blocks": "BLK",
-    "Turnovers": "TOV",             # Turnovers
-    "3-Point Made": "FG3M"          # 3-Point field goals made
+    "Turnovers": "TOV",  # Turnovers
+    "3-Point Made": "FG3M",  # 3-Point field goals made
 }
+
 
 # Function to fetch player ID
 def get_player_id(player_name):
@@ -29,13 +48,16 @@ def get_player_id(player_name):
     """
     players = commonallplayers.CommonAllPlayers(is_only_current_season=0)
     players_df = players.get_data_frames()[0]
-    matching_players = players_df[players_df['DISPLAY_FIRST_LAST'].str.contains(player_name, case=False, na=False)]
+    matching_players = players_df[
+        players_df["DISPLAY_FIRST_LAST"].str.contains(player_name, case=False, na=False)
+    ]
     if not matching_players.empty:
         # print(matching_players[['PERSON_ID', 'DISPLAY_FIRST_LAST']])
-        return matching_players['PERSON_ID'].iloc[0]
+        return matching_players["PERSON_ID"].iloc[0]
     else:
         print(f"No players found for name: {player_name}")
         return None
+
 
 # Function to fetch the last x game stats
 def get_last_x_game_stats(player_id, num_games=20):
@@ -46,30 +68,23 @@ def get_last_x_game_stats(player_id, num_games=20):
     gamelog_df = gamelog.get_data_frames()[0]
     return gamelog_df.head(num_games)
 
+
 # Function to extract specific stats
 def get_stat_from_last_x_games(gamelog_df, stat):
     """
     Extracts a specific stat from a player's game log.
     """
-    stat_dict = {row['GAME_DATE']: row[stat] for _, row in gamelog_df.iterrows()}
+    stat_dict = {row["GAME_DATE"]: row[stat] for _, row in gamelog_df.iterrows()}
     num_games_missed = sum(1 for value in stat_dict.values() if pd.isna(value))
     return stat_dict, num_games_missed
 
+
 # Function to evaluate bets
-def evaluate_bet(stat_results, bet_target, over_under, num_games, player_name, stat_name):
+def evaluate_bet(
+    stat_results, bet_target, over_under, num_games, player_name, stat_name
+) -> BetEvaluation:
     """
-    Evaluates a bet based on recent stats and provides dynamic output based on hit rate.
-
-    Args:
-        stat_results (tuple): Tuple of (stat_dict, num_games_missed).
-        bet_target (float): Target value for the bet.
-        over_under (OverUnder): Enum indicating 'over' or 'under'.
-        num_games (int): Number of games considered.
-        player_name (str): Name of the player.
-        stat_name (str): Name of the statistic being evaluated.
-
-    Returns:
-        float: The hit rate percentage.
+    Gathers bet evaluation data and returns it as a BetEvaluation object.
     """
     stat_dict, num_games_missed = stat_results
     hits, misses, games_active = 0, 0, 0
@@ -88,47 +103,72 @@ def evaluate_bet(stat_results, bet_target, over_under, num_games, player_name, s
 
     hit_rate = hits / games_active if games_active > 0 else 0
 
-    if hit_rate > 0.65:
-        # Detailed output for high hit rate
+    # Return the data as a BetEvaluation object
+    return BetEvaluation(
+        player_name=player_name,
+        stat_name=stat_name,
+        bet_target=bet_target,
+        over_under=over_under.value,
+        hits=hits,
+        misses=misses,
+        games_active=games_active,
+        games_missed=num_games_missed,
+        hit_rate=hit_rate,
+        num_games=num_games,
+    )
+
+
+def print_bet_evaluation(bet_info, print_stats=False):
+    """
+    Prints the bet evaluation results in either a detailed or quick format.
+    Accepts a BetEvaluation object.
+    """
+    # Access attributes directly from the BetEvaluation object
+    player_name = bet_info.player_name
+    stat_name = bet_info.stat_name
+    over_under = bet_info.over_under.capitalize()
+    bet_target = bet_info.bet_target
+    hit_rate = bet_info.hit_rate
+    num_games = bet_info.num_games
+
+    # If the hit rate is high or print_stats is True, show detailed output
+    if hit_rate > 0.75 or print_stats:
+        display_player_stats_last_20_games(player_name)
         print("\n" + "=" * 50)
         print(f"Detailed Bet Evaluation for {player_name} - {stat_name}")
-        print(f"Target: {over_under.value.capitalize()} {bet_target} over last {num_games} games")
+        print(f"Target: {over_under} {bet_target} over last {num_games} games")
         print("-" * 50)
-        print(f"Results:")
-        print(f"- Hits: {hits}")
-        print(f"- Misses: {misses}")
-        print(f"- Games Active: {games_active}")
-        print(f"- Games Missed (No Data): {num_games_missed}")
+        print(f"- Hits: {bet_info.hits}")
+        print(f"- Misses: {bet_info.misses}")
+        print(f"- Games Active: {bet_info.games_active}")
+        print(f"- Games Missed (No Data): {bet_info.games_missed}")
         print(f"- Hit Rate: {hit_rate:.2%}")
         print("=" * 50 + "\n")
     else:
-        # Quick line summary for low hit rate
-        print(f"{player_name} - {stat_name}: {over_under.value.capitalize()} {bet_target} | Hit Rate: {hit_rate:.2%}")
+        # Quick summary for lower hit rates
+        print(
+            f"{player_name} - {stat_name}: {over_under} {bet_target} | "
+            f"Hit Rate: {hit_rate:.2%}"
+        )
 
-    return hit_rate
 
-
-# Function to evaluate multiple player props
-# Function to evaluate multiple player props
 def go_through_props_and_evaluate(props, num_games=20):
     """
-    Evaluates a dictionary of player props with multiple stats.
+    Evaluates a dictionary of player props with multiple stats
+    and prints using the new print_bet_evaluation function.
     """
     for player_name, stats in props.items():
-        time.sleep(.5)
-        # Fetch player ID
+        time.sleep(0.5)
         player_id = get_player_id(player_name)
         if not player_id:
             print(f"Player {player_name} not found. Skipping.")
             continue
 
         try:
-            # Fetch game logs
             gamelog_df = get_last_x_game_stats(player_id, num_games)
 
-            # Loop through stats for the player
             for stat, bet_target in stats.items():
-                # Map human-readable stat name to NBA API column name
+                # Convert the human-readable stat name
                 stat_key = STAT_MAPPING.get(stat)
                 if not stat_key:
                     print(f"Statistic '{stat}' not recognized. Skipping.")
@@ -136,58 +176,157 @@ def go_through_props_and_evaluate(props, num_games=20):
 
                 try:
                     stat_results = get_stat_from_last_x_games(gamelog_df, stat_key)
-                    hit_rate = evaluate_bet(stat_results, bet_target, OverUnder.OVER, num_games, player_name, stat)
+                    bet_info = evaluate_bet(
+                        stat_results,
+                        bet_target,
+                        OverUnder.OVER,
+                        num_games,
+                        player_name,
+                        stat,
+                    )
+                    # Now we simply pass bet_info to the printer
+                    print_bet_evaluation(bet_info)
 
-
-                    if hit_rate > 0.65:
-                        print(f"GOOD Hit rate ({hit_rate:.2%}) for {stat} of {player_name}. Target = {bet_target}")
+                    if bet_info["hit_rate"] > 0.65:
+                        print(
+                            f"GOOD Hit rate ({bet_info['hit_rate']:.2%}) "
+                            f"for {stat} of {player_name}. Target = {bet_target}"
+                        )
                 except KeyError:
-                    print(f"Statistic '{stat_key}' not found in game logs for {player_name}. Skipping.")
+                    print(
+                        f"Statistic '{stat_key}' not found for {player_name}. Skipping."
+                    )
         except Exception as e:
             print(f"Error evaluating {player_name}: {e}")
 
 
-# Main function for command-line usage
-def main():
-    parser = argparse.ArgumentParser(description="Evaluate NBA player stats for betting purposes.")
-    parser.add_argument("player", type=str, help="Player's full name (e.g., 'Nikola Jokić').")
-    parser.add_argument("statistic", type=str, help="Statistic to evaluate (e.g., 'PTS', 'REB').")
-    parser.add_argument("bet_target", type=float, help="Target value for the bet.")
-    parser.add_argument("over_under", type=str, choices=[e.value for e in OverUnder], help="Specify 'over' or 'under'.")
-    parser.add_argument("--num_games", type=int, default=20, help="Number of games to evaluate (default: 20).")
-
-    args = parser.parse_args()
-    player_name = args.player
-    statistic = args.statistic.upper()
-    bet_target = args.bet_target
-    over_under = OverUnder(args.over_under)
-    num_games = args.num_games
-
-    # Fetch player ID
+def display_player_stats_last_20_games(player_name):
+    """
+    Displays a nicely formatted summary of a player's last 20 games using the NBA API.
+    """
+    # 1. Get the Player ID
     player_id = get_player_id(player_name)
     if not player_id:
-        print("Player not found. Exiting.")
-        sys.exit(1)
+        print(f"No player found for: {player_name}")
+        return
 
-    # Fetch game logs
-    try:
-        gamelog_df = get_last_x_game_stats(player_id, num_games)
-    except Exception as e:
-        print(f"Error fetching game logs: {e}")
-        sys.exit(1)
+    # 2. Fetch the last 20 games
+    gamelog_df = get_last_x_game_stats(player_id, num_games=20)
+    if gamelog_df.empty:
+        print(f"No game logs found for: {player_name}")
+        return
 
-    # Extract stats
-    try:
-        stat_results = get_stat_from_last_x_games(gamelog_df, statistic)
-    except KeyError:
-        print(f"Statistic '{statistic}' not found in game logs.")
-        sys.exit(1)
+    # 3. Define which columns you want to show
+    columns_to_display = [
+        "GAME_DATE",
+        "MATCHUP",
+        "WL",
+        "MIN",
+        "PTS",
+        "REB",
+        "AST",
+        "STL",
+        "BLK",
+        "TOV",
+        "FGM",
+        "FGA",
+        "FG_PCT",
+        "FG3M",
+        "FG3A",
+        "FG3_PCT",
+        "FTM",
+        "FTA",
+        "FT_PCT",
+    ]
 
-    # Evaluate bet
-    evaluate_bet(stat_results, bet_target, over_under, num_games)
+    # Ensure columns exist (they usually do, but just in case)
+    columns_to_display = [
+        col for col in columns_to_display if col in gamelog_df.columns
+    ]
+
+    # 4. Format and print
+    display_df = gamelog_df[columns_to_display]
+    print(f"\nLast 20 Games for {player_name}:\n")
+    print(display_df.to_string(index=False))
+
+
+# Main function for command-line usage
+import argparse
+import sys
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Evaluate NBA player stats for betting purposes."
+    )
+    parser.add_argument(
+        "--player", type=str, help="Player's full name (e.g., 'Nikola Jokić')."
+    )
+    parser.add_argument(
+        "--statistic", type=str, help="Statistic to evaluate (e.g., 'PTS', 'REB')."
+    )
+    parser.add_argument("--bet_target", type=float, help="Target value for the bet.")
+    parser.add_argument(
+        "--over_under",
+        type=str,
+        choices=["over", "under"],
+        help="Specify 'over' or 'under'.",
+    )
+    parser.add_argument(
+        "--num_games",
+        type=int,
+        default=20,
+        help="Number of games to evaluate (default: 20).",
+    )
+
+    args = parser.parse_args()
+
+    # Check if specific arguments are provided for single evaluation
+    if args.player and args.statistic and args.bet_target and args.over_under:
+        # Process a single player/statistic evaluation
+
+        player_name = args.player
+        statistic = args.statistic.upper()
+        bet_target = args.bet_target
+        over_under = args.over_under
+        num_games = args.num_games
+
+        # Fetch player ID
+        player_id = get_player_id(player_name)
+        if not player_id:
+            print("Player not found. Exiting.")
+            sys.exit(1)
+
+        # Fetch game logs
+        try:
+            gamelog_df = get_last_x_game_stats(player_id, num_games)
+        except Exception as e:
+            print(f"Error fetching game logs: {e}")
+            sys.exit(1)
+
+        # Extract stats
+        try:
+            stat_results = get_stat_from_last_x_games(gamelog_df, statistic)
+        except KeyError:
+            print(f"Statistic '{statistic}' not found in game logs.")
+            sys.exit(1)
+
+        # Evaluate bet
+        bet_info = evaluate_bet(
+            stat_results,
+            bet_target,
+            OverUnder(over_under),
+            num_games,
+            player_name,
+            statistic,
+        )
+        print_bet_evaluation(bet_info, print_stats=True)
+    else:
+        # Default to batch evaluation
+        print("Running batch evaluation...")
+        props = get_prop_info()  # Returns the dictionary with multiple stats
+        go_through_props_and_evaluate(props)
+
 
 if __name__ == "__main__":
-    # Example props for batch evaluation
-    props = get_prop_info()  # Returns the dictionary with multiple stats
-    print(props)
-    go_through_props_and_evaluate(props)
+    main()

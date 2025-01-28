@@ -84,20 +84,6 @@ def Create_Current_Bet_Dicts(Needed_Stat):
     return bet_dicts
 
 
-def get_pts_prop_info():
-    needed_stat = "Points"  # Replace with the stat you're interested in
-    bet_dicts = Create_Current_Bet_Dicts(needed_stat)
-
-    # Create a dictionary of {Player_Name: Stat_Score}
-    player_stats = {bet["Player_Name"]: bet["Stat_Score"] for bet in bet_dicts}
-
-    # Print the dictionary (optional)
-    for name, stat_score in player_stats.items():
-        print(f"{name}: {stat_score}")
-
-    return player_stats
-
-
 def get_prop_info():
     """
     Fetches player stats and returns them as a nested dictionary with all available stats.
