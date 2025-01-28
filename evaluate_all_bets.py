@@ -5,8 +5,20 @@ from nba_api.stats.endpoints import playergamelog, commonallplayers
 from enum import Enum
 from get_props import get_prop_info
 import time
+from typing import Dict, List
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+import statistics
+
+
+# TODO MAKE A PLAYER CLASS THAT HAS THE STATS!
+@dataclass
+class PlayerData:
+    player_name: str
+    stats: Dict[str, List[float]] = field(default_factory=dict)
+    team: str = ""
+    position: str = ""
+    num_games: int = 20
 
 
 @dataclass
@@ -21,6 +33,9 @@ class BetEvaluation:
     games_missed: int
     hit_rate: float
     num_games: int
+    median: float = 0.0
+    mode: float = 0.0
+    average: float = 0.0
 
 
 # Enum for Over/Under
@@ -79,19 +94,22 @@ def get_stat_from_last_x_games(gamelog_df, stat):
     return stat_dict, num_games_missed
 
 
-# Function to evaluate bets
 def evaluate_bet(
     stat_results, bet_target, over_under, num_games, player_name, stat_name
 ) -> BetEvaluation:
     """
-    Gathers bet evaluation data and returns it as a BetEvaluation object.
+    Gathers bet evaluation data and calculates additional stats like median, mode, and average.
+    Returns a BetEvaluation object.
     """
     stat_dict, num_games_missed = stat_results
     hits, misses, games_active = 0, 0, 0
+    stat_values = []
 
     for stat in stat_dict.values():
         if pd.isna(stat):  # Skip if stat is NaN
             continue
+
+        stat_values.append(stat)
 
         if over_under == OverUnder.OVER and stat > bet_target:
             hits += 1
@@ -102,6 +120,14 @@ def evaluate_bet(
         games_active += 1
 
     hit_rate = hits / games_active if games_active > 0 else 0
+
+    # Calculate median, mode, and average
+    median = statistics.median(stat_values) if stat_values else 0
+    try:
+        mode = statistics.mode(stat_values) if stat_values else 0
+    except statistics.StatisticsError:  # Handle no unique mode
+        mode = None
+    average = sum(stat_values) / len(stat_values) if stat_values else 0
 
     # Return the data as a BetEvaluation object
     return BetEvaluation(
@@ -115,21 +141,26 @@ def evaluate_bet(
         games_missed=num_games_missed,
         hit_rate=hit_rate,
         num_games=num_games,
+        median=median,
+        mode=mode,
+        average=average,
     )
 
 
-def print_bet_evaluation(bet_info, print_stats=False):
+def print_bet_evaluation(bet_info: BetEvaluation, print_stats=False):
     """
     Prints the bet evaluation results in either a detailed or quick format.
-    Accepts a BetEvaluation object.
+    Includes median, mode, and average calculations.
     """
-    # Access attributes directly from the BetEvaluation object
     player_name = bet_info.player_name
     stat_name = bet_info.stat_name
     over_under = bet_info.over_under.capitalize()
     bet_target = bet_info.bet_target
     hit_rate = bet_info.hit_rate
     num_games = bet_info.num_games
+    median = bet_info.median
+    mode = bet_info.mode
+    average = bet_info.average
 
     # If the hit rate is high or print_stats is True, show detailed output
     if hit_rate > 0.75 or print_stats:
@@ -137,18 +168,21 @@ def print_bet_evaluation(bet_info, print_stats=False):
         print("\n" + "=" * 50)
         print(f"Detailed Bet Evaluation for {player_name} - {stat_name}")
         print(f"Target: {over_under} {bet_target} over last {num_games} games")
+        print(f"Hit Rate: {hit_rate:.2%}")
         print("-" * 50)
         print(f"- Hits: {bet_info.hits}")
         print(f"- Misses: {bet_info.misses}")
         print(f"- Games Active: {bet_info.games_active}")
         print(f"- Games Missed (No Data): {bet_info.games_missed}")
-        print(f"- Hit Rate: {hit_rate:.2%}")
+        print(f"- Average {stat_name}: {average:.2f}")
+        print(f"- Median {stat_name}: {median}")
+        print(f"- Mode {stat_name}: {mode}")
         print("=" * 50 + "\n")
     else:
         # Quick summary for lower hit rates
         print(
             f"{player_name} - {stat_name}: {over_under} {bet_target} | "
-            f"Hit Rate: {hit_rate:.2%}"
+            f"Hit Rate: {hit_rate:.2%}"  # | Median: {median} | Mode: {mode} | Average: {average:.2f}"
         )
 
 
@@ -164,40 +198,29 @@ def go_through_props_and_evaluate(props, num_games=20):
             print(f"Player {player_name} not found. Skipping.")
             continue
 
-        try:
-            gamelog_df = get_last_x_game_stats(player_id, num_games)
+        gamelog_df = get_last_x_game_stats(player_id, num_games)
 
-            for stat, bet_target in stats.items():
-                # Convert the human-readable stat name
-                stat_key = STAT_MAPPING.get(stat)
-                if not stat_key:
-                    print(f"Statistic '{stat}' not recognized. Skipping.")
-                    continue
+        for stat, bet_target in stats.items():
+            # Convert the human-readable stat name
+            stat_key = STAT_MAPPING.get(stat)
+            if not stat_key:
+                print(f"Statistic '{stat}' not recognized. Skipping.")
+                continue
 
-                try:
-                    stat_results = get_stat_from_last_x_games(gamelog_df, stat_key)
-                    bet_info = evaluate_bet(
-                        stat_results,
-                        bet_target,
-                        OverUnder.OVER,
-                        num_games,
-                        player_name,
-                        stat,
-                    )
-                    # Now we simply pass bet_info to the printer
-                    print_bet_evaluation(bet_info)
-
-                    if bet_info["hit_rate"] > 0.65:
-                        print(
-                            f"GOOD Hit rate ({bet_info['hit_rate']:.2%}) "
-                            f"for {stat} of {player_name}. Target = {bet_target}"
-                        )
-                except KeyError:
-                    print(
-                        f"Statistic '{stat_key}' not found for {player_name}. Skipping."
-                    )
-        except Exception as e:
-            print(f"Error evaluating {player_name}: {e}")
+            try:
+                stat_results = get_stat_from_last_x_games(gamelog_df, stat_key)
+                bet_info = evaluate_bet(
+                    stat_results,
+                    bet_target,
+                    OverUnder.OVER,
+                    num_games,
+                    player_name,
+                    stat,
+                )
+                # Now we simply pass bet_info to the printer
+                print_bet_evaluation(bet_info)
+            except KeyError:
+                print(f"Statistic '{stat_key}' not found for {player_name}. Skipping.")
 
 
 def display_player_stats_last_20_games(player_name):
