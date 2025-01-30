@@ -57,6 +57,12 @@ def create_props(bet_data: dict) -> List[Prop]:
         if not player:
             continue  # Skip if player details are missing
 
+        player_name = player.get("name", "Unknown")
+
+        # Skip if the player name contains a '+'
+        if "+" in player_name:
+            continue
+
         # Determine Over/Under (Placeholder logic, adjust if needed)
         over_under = "over" if attr["line_score"] > 0 else "under"
 
@@ -65,7 +71,7 @@ def create_props(bet_data: dict) -> List[Prop]:
 
         props.append(
             Prop(
-                player_name=player.get("name", "Unknown"),
+                player_name=player_name,
                 stat=attr["stat_type"],
                 target=attr["line_score"],
                 over_under=over_under,

@@ -83,9 +83,18 @@ def get_player_id(player_name: str) -> int:
         return None
 
 
+# Global ping counter
+pings = 0
+
+
 # Function to fetch the last x game stats
 def get_last_x_game_stats(player_id: int, num_games: int = 20) -> pd.DataFrame:
     """Fetches the last `num_games` for a player using the NBA API."""
+    global pings  # Declare `pings` as global to modify it
+    pings += 1  # Increment the ping counter
+    # print(f"PINGING NBA, PINGS = {pings}")  # Print the current ping count
+
+    # Fetch the game log data
     gamelog = playergamelog.PlayerGameLog(player_id=player_id)
     gamelog_df = gamelog.get_data_frames()[0]
     return gamelog_df.head(num_games)
@@ -208,17 +217,28 @@ def print_bet_evaluation(bet_info: BetEvaluation, print_stats: bool = False):
         )
 
 
-# Function to evaluate all props
+# Add a cache dictionary at the top of your script
+player_stats_cache = {}
+
+
+# Modify the go_through_props_and_evaluate function
 def go_through_props_and_evaluate(props: List[Prop], num_games: int = 20):
     """Evaluates a list of Prop objects and prints the results."""
-    for prop in props:
-        time.sleep(0.5)
-        player_id = get_player_id(prop.player_name)
-        if not player_id:
-            print(f"Player {prop.player_name} not found. Skipping.")
-            continue
+    for prop in props:  # [:10]:
+        time.sleep(0.5)  # Add a delay to avoid hitting API rate limits
 
-        gamelog_df = get_last_x_game_stats(player_id, num_games)
+        # Check if the player's stats are already in the cache
+        if prop.player_name in player_stats_cache:
+            gamelog_df = player_stats_cache[prop.player_name]
+        else:
+            # Fetch the player's stats and store them in the cache
+            player_id = get_player_id(prop.player_name)
+            if not player_id:
+                print(f"Player {prop.player_name} not found. Skipping.")
+                continue
+
+            gamelog_df = get_last_x_game_stats(player_id, num_games)
+            player_stats_cache[prop.player_name] = gamelog_df
 
         # Convert the human-readable stat name
         stat_key = STAT_MAPPING.get(prop.stat)
@@ -362,3 +382,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+    # print(f"player_stats_cache= {player_stats_cache}")
+    # To get pts:
+    # print(player_stats_cache["Amir Coffey"]["PTS"])
