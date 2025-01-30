@@ -5,9 +5,12 @@ from nba_api.stats.endpoints import playergamelog, commonallplayers
 from enum import Enum
 from get_props import load_bets_json, create_props, Prop
 import time
-from typing import Dict, List
+from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 import statistics
+from collections import defaultdict
+
+player_stats_cache = {}
 
 
 # Define the PlayerData class
@@ -92,7 +95,7 @@ def get_last_x_game_stats(player_id: int, num_games: int = 20) -> pd.DataFrame:
     """Fetches the last `num_games` for a player using the NBA API."""
     global pings  # Declare `pings` as global to modify it
     pings += 1  # Increment the ping counter
-    # print(f"PINGING NBA, PINGS = {pings}")  # Print the current ping count
+    print(f"PINGING NBA, PINGS = {pings}")  # Print the current ping count
 
     # Fetch the game log data
     gamelog = playergamelog.PlayerGameLog(player_id=player_id)
@@ -128,7 +131,7 @@ def evaluate_bet(
     num_games: int,
     player_name: str,
     stat_name: str,
-    odds_type: str,
+    odds_type: Optional[str],
 ) -> BetEvaluation:
     """Evaluates a bet and returns a BetEvaluation object."""
     stat_dict, num_games_missed = stat_results
@@ -199,7 +202,8 @@ def print_bet_evaluation(bet_info: BetEvaluation, print_stats: bool = False):
         print(f"Detailed Bet Evaluation for {player_name} - {stat_name}")
         print(f"Target: {over_under} {bet_target} over last {num_games} games")
         print(f"Hit Rate: {hit_rate:.2%}")
-        print(f"Odds Type: {odds_type.capitalize()}")  # Include odds_type
+        if odds_type is not None:
+            print(f"Odds Type: {odds_type.capitalize()}")  # Include odds_type
         print("-" * 50)
         print(f"- Hits: {bet_info.hits}")
         print(f"- Misses: {bet_info.misses}")
@@ -217,28 +221,17 @@ def print_bet_evaluation(bet_info: BetEvaluation, print_stats: bool = False):
         )
 
 
-# Add a cache dictionary at the top of your script
-player_stats_cache = {}
-
-
-# Modify the go_through_props_and_evaluate function
-def go_through_props_and_evaluate(props: List[Prop], num_games: int = 20):
+def go_through_player_props_and_evaluate(props: List[Prop], num_games: int = 20):
     """Evaluates a list of Prop objects and prints the results."""
-    for prop in props:  # [:10]:
+    for prop in props:
         time.sleep(0.5)  # Add a delay to avoid hitting API rate limits
 
-        # Check if the player's stats are already in the cache
-        if prop.player_name in player_stats_cache:
-            gamelog_df = player_stats_cache[prop.player_name]
-        else:
-            # Fetch the player's stats and store them in the cache
-            player_id = get_player_id(prop.player_name)
-            if not player_id:
-                print(f"Player {prop.player_name} not found. Skipping.")
-                continue
+        # Check if the player's stats are in the cache
+        if prop.player_name not in player_stats_cache:
+            print(f"Player {prop.player_name} not found in cache. Skipping.")
+            continue
 
-            gamelog_df = get_last_x_game_stats(player_id, num_games)
-            player_stats_cache[prop.player_name] = gamelog_df
+        gamelog_df = player_stats_cache[prop.player_name]
 
         # Convert the human-readable stat name
         stat_key = STAT_MAPPING.get(prop.stat)
@@ -266,12 +259,12 @@ def go_through_props_and_evaluate(props: List[Prop], num_games: int = 20):
 # Function to display player stats for the last 20 games
 def display_player_stats_last_20_games(player_name: str):
     """Displays a nicely formatted summary of a player's last 20 games using the NBA API."""
-    player_id = get_player_id(player_name)
-    if not player_id:
-        print(f"No player found for: {player_name}")
+    # Check if the player's stats are in the cache
+    if player_name not in player_stats_cache:
+        print(f"No stats found in cache for: {player_name}")
         return
 
-    gamelog_df = get_last_x_game_stats(player_id, num_games=20)
+    gamelog_df = player_stats_cache[player_name]
     if gamelog_df.empty:
         print(f"No game logs found for: {player_name}")
         return
@@ -306,7 +299,6 @@ def display_player_stats_last_20_games(player_name: str):
     print(display_df.to_string(index=False))
 
 
-# Main function for command-line usage
 def main():
     parser = argparse.ArgumentParser(
         description="Evaluate NBA player stats for betting purposes."
@@ -351,6 +343,7 @@ def main():
         # Fetch game logs
         try:
             gamelog_df = get_last_x_game_stats(player_id, num_games)
+            player_stats_cache[player_name] = gamelog_df
         except Exception as e:
             print(f"Error fetching game logs: {e}")
             sys.exit(1)
@@ -370,18 +363,39 @@ def main():
             num_games,
             player_name,
             statistic,
+            None,
         )
         print_bet_evaluation(bet_info, print_stats=True)
+
     else:
-        # Default to batch evaluation
+        # Batch evaluation: Optimize by processing one player at a time
         print("Running batch evaluation...")
         bet_data = load_bets_json()
         props = create_props(bet_data)
-        go_through_props_and_evaluate(props)
+
+        # Group props by player
+
+        all_player_props = defaultdict(list)
+        for prop in props:
+            all_player_props[prop.player_name].append(prop)
+
+        # Process each player separately
+        for player_name, player_props in all_player_props.items():
+            player_id = get_player_id(player_name)
+            if not player_id:
+                print(f"Player {player_name} not found. Skipping.")
+                continue
+
+            try:
+                gamelog_df = get_last_x_game_stats(player_id, num_games=20)
+                player_stats_cache[player_name] = gamelog_df
+            except Exception as e:
+                print(f"Error fetching game logs for {player_name}: {e}")
+                continue
+
+            # Evaluate props for this player
+            go_through_player_props_and_evaluate(player_props)
 
 
 if __name__ == "__main__":
     main()
-    # print(f"player_stats_cache= {player_stats_cache}")
-    # To get pts:
-    # print(player_stats_cache["Amir Coffey"]["PTS"])
