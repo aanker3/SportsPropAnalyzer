@@ -1,138 +1,91 @@
 import json
+from dataclasses import dataclass
+from enum import Enum
+from typing import List, Dict
+
+FILE_PATH = "get_props/prizepicks_props.json"
 
 
-def Gather_Bets_Json():
-    """
-    Gather Bet data recieved from PrizePicks
-    Turn into JSON
-    """
-    with open("get_props/prizepicks_props.txt", "r") as file:
-        bets = file.readlines()
+class OddsType(Enum):
+    STANDARD = "standard"
+    DEMON = "demon"
+    GOBLIN = "goblin"
 
-        bet_data = json.loads(bets[0])
-
-    return bet_data
-
-
-def Gather_Bets_From_Data(bet_data, Needed_Stat):
-    """
-    Gather all the bet objects and append to bets_list
-    Gather all the players and append to players_list
-    """
-    bets_list = []
-    players_list = []
-
-    i = 0
-    while i < (len(bet_data["data"])):
-
-        stat_type = bet_data["data"][i]["attributes"]["stat_type"]
-
-        if stat_type == Needed_Stat:
-            stat_type = bet_data["data"][i]["attributes"]["stat_type"]
-
-            bets_list.append(bet_data["data"][i])
-        i += 1
-
-    j = 0
-    while j < (len(bet_data["included"])):
-        if bet_data["included"][j]["type"] == "new_player":
-            players_list.append(bet_data["included"][j])
-        j += 1
-
-    return bets_list, players_list
+    @staticmethod
+    def from_string(value: str) -> "OddsType":
+        """Convert a string to an OddsType enum, defaulting to STANDARD."""
+        try:
+            return OddsType(value.lower())
+        except ValueError:
+            return OddsType.STANDARD  # Default if an unknown value appears
 
 
-def Create_Bet_Dicts(bets_list, players_list):
-    """
-    Players names were not matched to bets before, so use bets_list
-    and players_list to create dictionary for each bet, with the players name
-    the team they are playing, the stat line, the stat type, and the players id
-    """
-
-    new_bets = []
-
-    i = 0
-    while i < len(bets_list):
-        id_needed = bets_list[i]["relationships"]["new_player"]["data"]["id"]
-
-        j = 0
-
-        while j < len(players_list):
-            current_id = players_list[j]["id"]
-            if current_id == id_needed:
-                new_bets.append(
-                    {
-                        "Stat_Score": bets_list[i]["attributes"]["line_score"],
-                        "Team_Playing": bets_list[i]["attributes"]["description"],
-                        "Stat_Type": bets_list[i]["attributes"]["stat_type"],
-                        "Player_ID": players_list[j]["id"],
-                        "Player_Name": players_list[j]["attributes"]["name"],
-                        "Position": players_list[j]["attributes"]["position"],
-                    }
-                )
-            j += 1
-        i += 1
-
-    return new_bets
+@dataclass
+class Prop:
+    player_name: str
+    stat: str
+    target: float
+    over_under: str
+    odds_type: OddsType
 
 
-def Create_Current_Bet_Dicts(Needed_Stat):
-    bet_data = Gather_Bets_Json()
-    bets_list, players_list = Gather_Bets_From_Data(bet_data, Needed_Stat)
-    bet_dicts = Create_Bet_Dicts(bets_list, players_list)
-
-    return bet_dicts
+def load_bets_json(filepath: str = FILE_PATH) -> dict:
+    """Read and parse JSON data from the PrizePicks file."""
+    with open(filepath, "r") as file:
+        return json.load(file)
 
 
-def get_prop_info():
-    """
-    Fetches player stats and returns them as a nested dictionary with all available stats.
-
-    Returns:
-        dict: A dictionary structured as {Player_Name: {Stat_Name: Stat_Value, ...}}.
-    """
-    # Define the stats you want to retrieve
-    needed_stats = [
-        "Points",
-        "Rebounds",
-        "Offensive Rebounds",
-        "Assists",
-        "Steals",
-        "Blocks",
-        "Turnovers",
-        "3-Point Made",
-    ]
-    player_stats = {}
-
-    # Loop through each needed stat
-    for stat in needed_stats:
-        # Fetch data for the specific stat
-        bet_dicts = Create_Current_Bet_Dicts(stat)
-
-        # Add data to the player_stats dictionary
-        for bet in bet_dicts:
-            player_name = bet["Player_Name"]
-            # stat_name = bet["Stat_Name"]
-            stat_value = bet["Stat_Score"]
-
-            # Initialize player's stats if not already present
-            if player_name not in player_stats:
-                player_stats[player_name] = {}
-
-            # Add or update the stat for the player
-            player_stats[player_name][stat] = stat_value
-
-    # Print the dictionary (optional, for debugging)
-    # for name, stats in player_stats.items():
-    #     print(f"{name}: {stats}")
-
-    return player_stats
+def extract_players(bet_data: dict) -> Dict[str, dict]:
+    """Extract player details into a dictionary mapping player_id -> player_info."""
+    return {
+        player["id"]: player["attributes"]
+        for player in bet_data.get("included", [])
+        if player["type"] == "new_player"
+    }
 
 
-# if __name__ == "__main__":
-#     needed_stat = "Points"  # Replace with the stat you're interested in
-#     bet_dicts = Create_Current_Bet_Dicts(needed_stat)
-#     for bet in bet_dicts:
-#         print(bet)
-#     stat_score = bet["Stat_Score"]
-#     name = bet["Player_Name"]
+def create_props(bet_data: dict) -> List[Prop]:
+    """Create Prop objects from bet and player data."""
+    players = extract_players(bet_data)
+    props = []
+
+    for bet in bet_data.get("data", []):
+        attr = bet["attributes"]
+        player_id = bet["relationships"]["new_player"]["data"]["id"]
+        player = players.get(player_id, {})
+
+        if not player:
+            continue  # Skip if player details are missing
+
+        player_name = player.get("name", "Unknown")
+
+        # Skip if the player name contains a '+'
+        if "+" in player_name:
+            continue
+
+        # Determine Over/Under (Placeholder logic, adjust if needed)
+        over_under = "over" if attr["line_score"] > 0 else "under"
+
+        # Convert odds_type string to an enum value
+        odds_type = OddsType.from_string(attr.get("odds_type", "standard"))
+
+        props.append(
+            Prop(
+                player_name=player_name,
+                stat=attr["stat_type"],
+                target=attr["line_score"],
+                over_under=over_under,
+                odds_type=odds_type,
+            )
+        )
+
+    return props
+
+
+# Example usage:
+if __name__ == "__main__":
+    bet_data = load_bets_json()
+    props = create_props(bet_data)
+
+    for prop in props:
+        print(prop)
