@@ -3,7 +3,7 @@ import pandas as pd
 import sys
 from nba_api.stats.endpoints import playergamelog, commonallplayers
 from enum import Enum
-from get_props import load_bets_json, create_props, Prop
+from get_props import load_bets_json, create_props, Prop, OddsType
 import time
 from typing import Dict, List, Optional
 from dataclasses import dataclass, field
@@ -40,7 +40,7 @@ class BetEvaluation:
     median: float = 0.0
     mode: float = 0.0
     average: float = 0.0
-    odds_type: str = "standard"
+    odds_type: OddsType = OddsType.STANDARD
 
 
 # Enum for Over/Under
@@ -134,7 +134,7 @@ def evaluate_bet(
     num_games: int,
     player_name: str,
     stat_name: str,
-    odds_type: Optional[str],
+    odds_type: Optional[OddsType],
 ) -> BetEvaluation:
     """Evaluates a bet and returns a BetEvaluation object."""
     stat_dict, num_games_missed = stat_results
@@ -184,6 +184,37 @@ def evaluate_bet(
     )
 
 
+def print_detailed_bet_evaluation(bet_info: BetEvaluation):
+    """Prints a detailed evaluation of a bet, including player stats and calculated metrics."""
+    player_name = bet_info.player_name
+    stat_name = bet_info.stat_name
+    over_under = bet_info.over_under.capitalize()
+    bet_target = bet_info.bet_target
+    hit_rate = bet_info.hit_rate
+    num_games = bet_info.num_games
+    median = bet_info.median
+    mode = bet_info.mode
+    average = bet_info.average
+    odds_type = bet_info.odds_type  # Get odds_type
+
+    display_player_stats_last_20_games(player_name)
+    print("\n" + "=" * 50)
+    print(f"Detailed Bet Evaluation for {player_name} - {stat_name}")
+    print(f"Target: {over_under} {bet_target} over last {num_games} games")
+    print(f"Hit Rate: {hit_rate:.2%}")
+    if odds_type is not None:
+        print(f"Odds Type: {odds_type.name}")  # Include odds_type
+    print("-" * 50)
+    print(f"- Hits: {bet_info.hits}")
+    print(f"- Misses: {bet_info.misses}")
+    print(f"- Games Active: {bet_info.games_active}")
+    print(f"- Games Missed (No Data): {bet_info.games_missed}")
+    print(f"- Average {stat_name}: {average:.2f}")
+    print(f"- Median {stat_name}: {median}")
+    print(f"- Mode {stat_name}: {mode}")
+    print("=" * 50 + "\n")
+
+
 # Function to print bet evaluation results
 def print_bet_evaluation(bet_info: BetEvaluation, print_stats: bool = False):
     """Prints the bet evaluation results in either a detailed or quick format."""
@@ -199,28 +230,19 @@ def print_bet_evaluation(bet_info: BetEvaluation, print_stats: bool = False):
     odds_type = bet_info.odds_type  # Get odds_type
 
     # If the hit rate is high or print_stats is True, show detailed output
-    if hit_rate > 0.75 or print_stats:
-        display_player_stats_last_20_games(player_name)
-        print("\n" + "=" * 50)
-        print(f"Detailed Bet Evaluation for {player_name} - {stat_name}")
-        print(f"Target: {over_under} {bet_target} over last {num_games} games")
-        print(f"Hit Rate: {hit_rate:.2%}")
-        if odds_type is not None:
-            print(f"Odds Type: {odds_type.capitalize()}")  # Include odds_type
-        print("-" * 50)
-        print(f"- Hits: {bet_info.hits}")
-        print(f"- Misses: {bet_info.misses}")
-        print(f"- Games Active: {bet_info.games_active}")
-        print(f"- Games Missed (No Data): {bet_info.games_missed}")
-        print(f"- Average {stat_name}: {average:.2f}")
-        print(f"- Median {stat_name}: {median}")
-        print(f"- Mode {stat_name}: {mode}")
-        print("=" * 50 + "\n")
+    # TODO: if hit rate < .15, swap over_under...
+    if (
+        (hit_rate >= 0.85 and odds_type == OddsType.GOBLIN)
+        or ((hit_rate <= 0.20 or hit_rate >= 0.80) and odds_type == OddsType.STANDARD)
+        or (hit_rate >= 0.5 and odds_type == OddsType.DEMON)
+        or print_stats
+    ):
+        print_detailed_bet_evaluation(bet_info)
     else:
         # Quick summary for lower hit rates
         print(
             f"{player_name} - {stat_name}: {over_under} {bet_target} | "
-            f"Hit Rate: {hit_rate:.2%} | Odds Type: {odds_type.capitalize()}"  # Include odds_type
+            f"Hit Rate: {hit_rate:.2%} | Odds Type: {odds_type.name}"  # Include odds_type
         )
 
 
@@ -251,7 +273,7 @@ def go_through_player_props_and_evaluate(props: List[Prop], num_games: int = 20)
                 num_games,
                 prop.player_name,
                 prop.stat,
-                prop.odds_type.value,  # Pass odds_type
+                prop.odds_type,  # Pass odds_type
             )
             # Now we simply pass bet_info to the printer
             print_bet_evaluation(bet_info)
