@@ -58,6 +58,7 @@ STAT_MAPPING = {
     "Assists": "AST",
     "Steals": "STL",
     "Blocks": "BLK",
+    "Blocked Shots": "BLK",  # Alias for Blocks
     "Turnovers": "TOV",  # Turnovers
     "3-PT Made": "FG3M",  # 3-Point field goals made
     "Free Throws Made": "FTM",  # Free throws made
@@ -69,6 +70,7 @@ STAT_MAPPING = {
     "Pts+Rebs+Asts": "PTS+REB+AST",  # Points + Rebounds + Assists
     "Pts+Asts": "PTS+AST",  # Points + Assists
     "Pts+Rebs": "PTS+REB",  # Points + Rebounds
+    "Blks+Stls": "BLK+STL",  # Blocks + Steals
 }
 
 
