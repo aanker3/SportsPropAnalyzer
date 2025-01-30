@@ -6,7 +6,7 @@ def Gather_Bets_Json():
     Gather Bet data recieved from PrizePicks
     Turn into JSON
     """
-    with open("get_props/PrizePicks/bets.txt", "r") as file:
+    with open("get_props/prizepicks_props.txt", "r") as file:
         bets = file.readlines()
 
         bet_data = json.loads(bets[0])
