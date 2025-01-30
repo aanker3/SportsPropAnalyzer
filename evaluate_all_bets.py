@@ -3,15 +3,14 @@ import pandas as pd
 import sys
 from nba_api.stats.endpoints import playergamelog, commonallplayers
 from enum import Enum
-from get_props import get_prop_info
+from get_props import load_bets_json, create_props, Prop
 import time
 from typing import Dict, List
-
 from dataclasses import dataclass, field
 import statistics
 
 
-# TODO MAKE A PLAYER CLASS THAT HAS THE STATS!
+# Define the PlayerData class
 @dataclass
 class PlayerData:
     player_name: str
@@ -21,6 +20,7 @@ class PlayerData:
     num_games: int = 20
 
 
+# Define the BetEvaluation class
 @dataclass
 class BetEvaluation:
     player_name: str
@@ -36,6 +36,7 @@ class BetEvaluation:
     median: float = 0.0
     mode: float = 0.0
     average: float = 0.0
+    odds_type: str = "standard"
 
 
 # Enum for Over/Under
@@ -44,30 +45,38 @@ class OverUnder(Enum):
     UNDER = "under"
 
 
+# Mapping of human-readable stat names to NBA API stat keys
 STAT_MAPPING = {
     "Points": "PTS",
     "Rebounds": "REB",  # Total rebounds
     "Offensive Rebounds": "OREB",  # Offensive rebounds
+    "Defensive Rebounds": "DREB",
     "Assists": "AST",
     "Steals": "STL",
     "Blocks": "BLK",
     "Turnovers": "TOV",  # Turnovers
-    "3-Point Made": "FG3M",  # 3-Point field goals made
+    "3-PT Made": "FG3M",  # 3-Point field goals made
+    "Free Throws Made": "FTM",  # Free throws made
+    "FG Made": "FGM",  # Field goals made
+    "FG Attempted": "FGA",  # Field goals attempted
+    "3-PT Attempted": "FG3A",  # 3-Point field goals attempted
+    # Derived stats
+    "Rebs+Asts": "REB+AST",  # Rebounds + Assists
+    "Pts+Rebs+Asts": "PTS+REB+AST",  # Points + Rebounds + Assists
+    "Pts+Asts": "PTS+AST",  # Points + Assists
+    "Pts+Rebs": "PTS+REB",  # Points + Rebounds
 }
 
 
 # Function to fetch player ID
-def get_player_id(player_name):
-    """
-    Fetches the player ID for a given player name using the NBA API.
-    """
+def get_player_id(player_name: str) -> int:
+    """Fetches the player ID for a given player name using the NBA API."""
     players = commonallplayers.CommonAllPlayers(is_only_current_season=0)
     players_df = players.get_data_frames()[0]
     matching_players = players_df[
         players_df["DISPLAY_FIRST_LAST"].str.contains(player_name, case=False, na=False)
     ]
     if not matching_players.empty:
-        # print(matching_players[['PERSON_ID', 'DISPLAY_FIRST_LAST']])
         return matching_players["PERSON_ID"].iloc[0]
     else:
         print(f"No players found for name: {player_name}")
@@ -75,32 +84,44 @@ def get_player_id(player_name):
 
 
 # Function to fetch the last x game stats
-def get_last_x_game_stats(player_id, num_games=20):
-    """
-    Fetches the last `num_games` for a player using the NBA API.
-    """
+def get_last_x_game_stats(player_id: int, num_games: int = 20) -> pd.DataFrame:
+    """Fetches the last `num_games` for a player using the NBA API."""
     gamelog = playergamelog.PlayerGameLog(player_id=player_id)
     gamelog_df = gamelog.get_data_frames()[0]
     return gamelog_df.head(num_games)
 
 
 # Function to extract specific stats
-def get_stat_from_last_x_games(gamelog_df, stat):
-    """
-    Extracts a specific stat from a player's game log.
-    """
-    stat_dict = {row["GAME_DATE"]: row[stat] for _, row in gamelog_df.iterrows()}
+def get_stat_from_last_x_games(gamelog_df: pd.DataFrame, stat: str) -> tuple:
+    """Extracts a specific stat from a player's game log, including derived stats."""
+    if "+" in stat:  # Handle derived stats
+        stat_keys = stat.split("+")
+        stat_dict = {}
+        for _, row in gamelog_df.iterrows():
+            stat_value = 0
+            for key in stat_keys:
+                stat_value += row.get(key, 0)  # Sum the relevant stats
+            stat_dict[row["GAME_DATE"]] = stat_value
+    else:  # Handle regular stats
+        stat_dict = {
+            row["GAME_DATE"]: row.get(stat, 0) for _, row in gamelog_df.iterrows()
+        }
+
     num_games_missed = sum(1 for value in stat_dict.values() if pd.isna(value))
     return stat_dict, num_games_missed
 
 
+# Function to evaluate a bet
 def evaluate_bet(
-    stat_results, bet_target, over_under, num_games, player_name, stat_name
+    stat_results: tuple,
+    bet_target: float,
+    over_under: OverUnder,
+    num_games: int,
+    player_name: str,
+    stat_name: str,
+    odds_type: str,
 ) -> BetEvaluation:
-    """
-    Gathers bet evaluation data and calculates additional stats like median, mode, and average.
-    Returns a BetEvaluation object.
-    """
+    """Evaluates a bet and returns a BetEvaluation object."""
     stat_dict, num_games_missed = stat_results
     hits, misses, games_active = 0, 0, 0
     stat_values = []
@@ -144,14 +165,13 @@ def evaluate_bet(
         median=median,
         mode=mode,
         average=average,
+        odds_type=odds_type,  # Include odds_type
     )
 
 
-def print_bet_evaluation(bet_info: BetEvaluation, print_stats=False):
-    """
-    Prints the bet evaluation results in either a detailed or quick format.
-    Includes median, mode, and average calculations.
-    """
+# Function to print bet evaluation results
+def print_bet_evaluation(bet_info: BetEvaluation, print_stats: bool = False):
+    """Prints the bet evaluation results in either a detailed or quick format."""
     player_name = bet_info.player_name
     stat_name = bet_info.stat_name
     over_under = bet_info.over_under.capitalize()
@@ -161,6 +181,7 @@ def print_bet_evaluation(bet_info: BetEvaluation, print_stats=False):
     median = bet_info.median
     mode = bet_info.mode
     average = bet_info.average
+    odds_type = bet_info.odds_type  # Get odds_type
 
     # If the hit rate is high or print_stats is True, show detailed output
     if hit_rate > 0.75 or print_stats:
@@ -169,6 +190,7 @@ def print_bet_evaluation(bet_info: BetEvaluation, print_stats=False):
         print(f"Detailed Bet Evaluation for {player_name} - {stat_name}")
         print(f"Target: {over_under} {bet_target} over last {num_games} games")
         print(f"Hit Rate: {hit_rate:.2%}")
+        print(f"Odds Type: {odds_type.capitalize()}")  # Include odds_type
         print("-" * 50)
         print(f"- Hits: {bet_info.hits}")
         print(f"- Misses: {bet_info.misses}")
@@ -182,64 +204,58 @@ def print_bet_evaluation(bet_info: BetEvaluation, print_stats=False):
         # Quick summary for lower hit rates
         print(
             f"{player_name} - {stat_name}: {over_under} {bet_target} | "
-            f"Hit Rate: {hit_rate:.2%}"  # | Median: {median} | Mode: {mode} | Average: {average:.2f}"
+            f"Hit Rate: {hit_rate:.2%} | Odds Type: {odds_type.capitalize()}"  # Include odds_type
         )
 
 
-def go_through_props_and_evaluate(props, num_games=20):
-    """
-    Evaluates a dictionary of player props with multiple stats
-    and prints using the new print_bet_evaluation function.
-    """
-    for player_name, stats in props.items():
+# Function to evaluate all props
+def go_through_props_and_evaluate(props: List[Prop], num_games: int = 20):
+    """Evaluates a list of Prop objects and prints the results."""
+    for prop in props:
         time.sleep(0.5)
-        player_id = get_player_id(player_name)
+        player_id = get_player_id(prop.player_name)
         if not player_id:
-            print(f"Player {player_name} not found. Skipping.")
+            print(f"Player {prop.player_name} not found. Skipping.")
             continue
 
         gamelog_df = get_last_x_game_stats(player_id, num_games)
 
-        for stat, bet_target in stats.items():
-            # Convert the human-readable stat name
-            stat_key = STAT_MAPPING.get(stat)
-            if not stat_key:
-                print(f"Statistic '{stat}' not recognized. Skipping.")
-                continue
+        # Convert the human-readable stat name
+        stat_key = STAT_MAPPING.get(prop.stat)
+        if not stat_key:
+            print(f"Statistic '{prop.stat}' not recognized. Skipping.")
+            continue
 
-            try:
-                stat_results = get_stat_from_last_x_games(gamelog_df, stat_key)
-                bet_info = evaluate_bet(
-                    stat_results,
-                    bet_target,
-                    OverUnder.OVER,
-                    num_games,
-                    player_name,
-                    stat,
-                )
-                # Now we simply pass bet_info to the printer
-                print_bet_evaluation(bet_info)
-            except KeyError:
-                print(f"Statistic '{stat_key}' not found for {player_name}. Skipping.")
+        try:
+            stat_results = get_stat_from_last_x_games(gamelog_df, stat_key)
+            bet_info = evaluate_bet(
+                stat_results,
+                prop.target,
+                OverUnder(prop.over_under),
+                num_games,
+                prop.player_name,
+                prop.stat,
+                prop.odds_type.value,  # Pass odds_type
+            )
+            # Now we simply pass bet_info to the printer
+            print_bet_evaluation(bet_info)
+        except KeyError:
+            print(f"Statistic '{stat_key}' not found for {prop.player_name}. Skipping.")
 
 
-def display_player_stats_last_20_games(player_name):
-    """
-    Displays a nicely formatted summary of a player's last 20 games using the NBA API.
-    """
-    # 1. Get the Player ID
+# Function to display player stats for the last 20 games
+def display_player_stats_last_20_games(player_name: str):
+    """Displays a nicely formatted summary of a player's last 20 games using the NBA API."""
     player_id = get_player_id(player_name)
     if not player_id:
         print(f"No player found for: {player_name}")
         return
 
-    # 2. Fetch the last 20 games
     gamelog_df = get_last_x_game_stats(player_id, num_games=20)
     if gamelog_df.empty:
         print(f"No game logs found for: {player_name}")
         return
 
-    # 3. Define which columns you want to show
     columns_to_display = [
         "GAME_DATE",
         "MATCHUP",
@@ -262,22 +278,15 @@ def display_player_stats_last_20_games(player_name):
         "FT_PCT",
     ]
 
-    # Ensure columns exist (they usually do, but just in case)
     columns_to_display = [
         col for col in columns_to_display if col in gamelog_df.columns
     ]
-
-    # 4. Format and print
     display_df = gamelog_df[columns_to_display]
     print(f"\nLast 20 Games for {player_name}:\n")
     print(display_df.to_string(index=False))
 
 
 # Main function for command-line usage
-import argparse
-import sys
-
-
 def main():
     parser = argparse.ArgumentParser(
         description="Evaluate NBA player stats for betting purposes."
@@ -307,7 +316,6 @@ def main():
     # Check if specific arguments are provided for single evaluation
     if args.player and args.statistic and args.bet_target and args.over_under:
         # Process a single player/statistic evaluation
-
         player_name = args.player
         statistic = args.statistic.upper()
         bet_target = args.bet_target
@@ -347,7 +355,8 @@ def main():
     else:
         # Default to batch evaluation
         print("Running batch evaluation...")
-        props = get_prop_info()  # Returns the dictionary with multiple stats
+        bet_data = load_bets_json()
+        props = create_props(bet_data)
         go_through_props_and_evaluate(props)
 
 

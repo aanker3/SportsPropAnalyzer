@@ -19,7 +19,7 @@ func main() {
 	scriptDir := filepath.Dir(exePath)
 
 	// Define the file path to ensure it's saved in the same folder as the script
-	fileName := filepath.Join(scriptDir, "prizepicks_props.txt")
+	fileName := filepath.Join(scriptDir, "prizepicks_props.json")
 
 	// Delete the existing file if it exists
 	if _, err := os.Stat(fileName); err == nil {
