@@ -9,6 +9,7 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 import statistics
 from collections import defaultdict
+import subprocess
 
 player_stats_cache = {}
 
@@ -256,6 +257,16 @@ def go_through_player_props_and_evaluate(props: List[Prop], num_games: int = 20)
             print(f"Statistic '{stat_key}' not found for {prop.player_name}. Skipping.")
 
 
+def update_props_file():
+    try:
+        print("Fetching props from PrizePicks...")
+        subprocess.run(["get_props/get_props_prizepicks.exe"], check=True)
+        print("Props successfully fetched.")
+    except subprocess.CalledProcessError as e:
+        print(f"Error running get_props_prizepicks.exe: {e}")
+        sys.exit(1)
+
+
 # Function to display player stats for the last 20 games
 def display_player_stats_last_20_games(player_name: str):
     """Displays a nicely formatted summary of a player's last 20 games using the NBA API."""
@@ -324,6 +335,8 @@ def main():
     )
 
     args = parser.parse_args()
+
+    update_props_file()
 
     # Check if specific arguments are provided for single evaluation
     if args.player and args.statistic and args.bet_target and args.over_under:
