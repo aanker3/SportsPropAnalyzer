@@ -1,7 +1,12 @@
 import argparse
 import pandas as pd
 import sys
-from nba_api.stats.endpoints import playergamelog, commonallplayers
+from nba_api.stats.endpoints import (
+    playergamelog,
+    commonallplayers,
+    teamgamelog,
+    commonplayerinfo,
+)
 from enum import Enum
 from get_props import load_bets_json, create_props, Prop, OddsType
 import time
@@ -93,9 +98,9 @@ def get_player_id(player_name: str) -> int:
 pings = 0
 
 
-# Function to fetch the last x game stats
+# Function to fetch the season stats
 def get_player_stats(player_name: str, num_games: int = 20) -> pd.DataFrame:
-    """Fetches last `num_games` for a player using the NBA API and caches results."""
+    """Fetches last num_games for a player using the NBA API and caches results."""
     global pings, player_stats_cache
 
     player_id = get_player_id(player_name)
@@ -104,18 +109,59 @@ def get_player_stats(player_name: str, num_games: int = 20) -> pd.DataFrame:
         return None
 
     if player_name in player_stats_cache:
-        return player_stats_cache[player_name]  # Reuse cached stats
+        print(f"Using cached stats for {player_name}.")
+        return player_stats_cache[player_name]
 
-    pings += 1
+    pings += 3
+
+    # Fetch player's team ID
+    team_id = (
+        commonplayerinfo.CommonPlayerInfo(player_id=player_id)
+        .get_data_frames()[0]["TEAM_ID"]
+        .iloc[0]
+    )
+    time.sleep(0.3)
+
+    # Fetch player's game log
+    gamelog_df = playergamelog.PlayerGameLog(player_id=player_id).get_data_frames()[0]
+    time.sleep(0.3)
+
+    # Fetch team's schedule
+    team_schedule = teamgamelog.TeamGameLog(
+        team_id=team_id, season="2024"
+    ).get_data_frames()[0]
+    time.sleep(0.3)
+
+    # Merge game log with team schedule
+    merged_df = pd.merge(
+        team_schedule[["Game_ID", "GAME_DATE", "MATCHUP", "WL"]],
+        gamelog_df,
+        on="Game_ID",
+        how="left",
+        suffixes=("_team", "_player"),
+    ).rename(
+        columns={
+            "WL_team": "WL",
+            "GAME_DATE_team": "GAME_DATE",
+            "MATCHUP_team": "MATCHUP",
+        }
+    )
+
     print(f"PINGING NBA, PINGS = {pings}")
 
-    gamelog = playergamelog.PlayerGameLog(player_id=player_id)  # Can add a season= arg
-    time.sleep(0.75)  # Add a delay to avoid hitting API rate limits
+    # Drop games where there is no Win or Loss value (If game is in play)
+    merged_df = merged_df.dropna(subset=["WL"])
 
-    gamelog_df = gamelog.get_data_frames()[0]  # .head(num_games)
+    merged_df["PLAYED"] = merged_df["MIN"].notna()
+    merged_df.fillna(0, inplace=True)
+    merged_df["GAME_DATE"] = pd.to_datetime(merged_df["GAME_DATE"], format="%b %d, %Y")
+    merged_df.sort_values("GAME_DATE", ascending=False, inplace=True)
 
-    player_stats_cache[player_name] = gamelog_df  # Cache results
-    return gamelog_df
+    # Cache results
+    player_stats_cache[player_name] = merged_df.head(num_games)
+    print(f"Cached stats for {player_name}.")
+
+    return player_stats_cache[player_name]
 
 
 # Function to extract specific stats
@@ -125,20 +171,18 @@ def get_stat_from_last_x_games(
     """Extracts a specific stat from a player's game log, including derived stats."""
     gamelog_df = gamelog_df.head(num_games)  # Select most recent X games
 
+    stat_dict = {}
+    num_games_missed = gamelog_df["PLAYED"].eq(False).sum()  # Count games not played
+
     if "+" in stat:  # Handle derived stats
         stat_keys = stat.split("+")
-        stat_dict = {}
         for _, row in gamelog_df.iterrows():
-            stat_value = 0
-            for key in stat_keys:
-                stat_value += row.get(key, 0)  # Sum the relevant stats
+            stat_value = sum(row.get(key, 0) for key in stat_keys)
             stat_dict[row["GAME_DATE"]] = stat_value
     else:  # Handle regular stats
         stat_dict = {
             row["GAME_DATE"]: row.get(stat, 0) for _, row in gamelog_df.iterrows()
         }
-
-    num_games_missed = sum(1 for value in stat_dict.values() if pd.isna(value))
 
     return stat_dict, num_games_missed
 
@@ -170,7 +214,7 @@ def evaluate_bet(
             hits += 1
         else:
             misses += 1
-        games_active += 1
+        games_active = num_games - num_games_missed
 
     hit_rate = hits / games_active if games_active > 0 else 0
 
@@ -225,7 +269,7 @@ def print_detailed_bet_evaluation(bet_info: BetEvaluation):
     print(f"- Hits: {bet_info.hits}")
     print(f"- Misses: {bet_info.misses}")
     print(f"- Games Active: {bet_info.games_active}")
-    print(f"- Games Missed (No Data): {bet_info.games_missed}")
+    print(f"- Games Missed: {bet_info.games_missed}")
     print(f"- Average {stat_name}: {average:.2f}")
     print(f"- Median {stat_name}: {median}")
     print(f"- Mode {stat_name}: {mode}")
@@ -398,12 +442,12 @@ def main():
         # Fetch player ID
 
         # Fetch game logs
-        try:
-            gamelog_df = get_player_stats(player_name, num_games)
-        except Exception as e:
-            print(f"Error fetching game logs: {e}")
-            sys.exit(1)
-
+        gamelog_df = get_player_stats(player_name, num_games=20)
+        player_stats_cache[player_name] = gamelog_df
+        # print(gamelog_df)
+        if gamelog_df is None or gamelog_df.empty:
+            print(f"Error fetching game logs")
+            sys.exit()
         # Extract stats
         try:
             stat_results = get_stat_from_last_x_games(gamelog_df, statistic)
@@ -437,14 +481,10 @@ def main():
 
         # Process each player separately
         for player_name, player_props in all_player_props.items():
-            try:
-                gamelog_df = get_player_stats(player_name, num_games=20)
-                player_stats_cache[player_name] = gamelog_df
-                # print(gamelog_df)
-                if gamelog_df is None or gamelog_df.empty:
-                    continue
-            except Exception as e:
-                print(f"Error fetching game logs for {player_name}: {e}")
+            gamelog_df = get_player_stats(player_name, num_games=20)
+            player_stats_cache[player_name] = gamelog_df
+            # print(gamelog_df)
+            if gamelog_df is None or gamelog_df.empty:
                 continue
 
             # Evaluate props for this player
