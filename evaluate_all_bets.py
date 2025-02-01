@@ -109,18 +109,22 @@ def get_player_stats(player_name: str, num_games: int = 20) -> pd.DataFrame:
     pings += 1
     print(f"PINGING NBA, PINGS = {pings}")
 
-    gamelog = playergamelog.PlayerGameLog(player_id=player_id)
+    gamelog = playergamelog.PlayerGameLog(player_id=player_id)  # Can add a season= arg
     time.sleep(0.75)  # Add a delay to avoid hitting API rate limits
 
-    gamelog_df = gamelog.get_data_frames()[0].head(num_games)
+    gamelog_df = gamelog.get_data_frames()[0]  # .head(num_games)
 
     player_stats_cache[player_name] = gamelog_df  # Cache results
     return gamelog_df
 
 
 # Function to extract specific stats
-def get_stat_from_last_x_games(gamelog_df: pd.DataFrame, stat: str) -> tuple:
+def get_stat_from_last_x_games(
+    gamelog_df: pd.DataFrame, stat: str, num_games: int = 20
+) -> tuple:
     """Extracts a specific stat from a player's game log, including derived stats."""
+    gamelog_df = gamelog_df.head(num_games)  # Select most recent X games
+
     if "+" in stat:  # Handle derived stats
         stat_keys = stat.split("+")
         stat_dict = {}
@@ -210,7 +214,7 @@ def print_detailed_bet_evaluation(bet_info: BetEvaluation):
     average = bet_info.average
     odds_type = bet_info.odds_type  # Get odds_type
 
-    display_player_stats_last_20_games(player_name)
+    display_player_stats_last_x_games(player_name)
     print("\n" + "=" * 50)
     print(f"Detailed Bet Evaluation for {player_name} - {stat_name}")
     print(f"Target: {over_under} {bet_target} over last {num_games} games")
@@ -305,7 +309,7 @@ def update_props_file():
 
 
 # Function to display player stats for the last 20 games
-def display_player_stats_last_20_games(player_name: str):
+def display_player_stats_last_x_games(player_name: str, num_games: int = 20):
     """Displays a nicely formatted summary of a player's last 20 games using the NBA API."""
     # Check if the player's stats are in the cache
     if player_name not in player_stats_cache:
@@ -319,12 +323,17 @@ def display_player_stats_last_20_games(player_name: str):
         print(f"No game logs found for: {player_name}")
         return
 
+    # Select the last `num_games` rows
+    gamelog_df = gamelog_df.head(num_games)
+
     columns_to_display = [
         "GAME_DATE",
         "MATCHUP",
         "WL",
         "MIN",
         "PTS",
+        "OREB",
+        "DREB",
         "REB",
         "AST",
         "STL",
@@ -431,7 +440,7 @@ def main():
             try:
                 gamelog_df = get_player_stats(player_name, num_games=20)
                 player_stats_cache[player_name] = gamelog_df
-                print(gamelog_df)
+                # print(gamelog_df)
                 if gamelog_df is None or gamelog_df.empty:
                     continue
             except Exception as e:
