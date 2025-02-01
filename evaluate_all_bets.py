@@ -94,16 +94,28 @@ pings = 0
 
 
 # Function to fetch the last x game stats
-def get_last_x_game_stats(player_id: int, num_games: int = 20) -> pd.DataFrame:
-    """Fetches the last `num_games` for a player using the NBA API."""
-    global pings  # Declare `pings` as global to modify it
-    pings += 1  # Increment the ping counter
-    print(f"PINGING NBA, PINGS = {pings}")  # Print the current ping count
+def get_player_stats(player_name: str, num_games: int = 20) -> pd.DataFrame:
+    """Fetches last `num_games` for a player using the NBA API and caches results."""
+    global pings, player_stats_cache
 
-    # Fetch the game log data
+    player_id = get_player_id(player_name)
+    if not player_id:
+        print(f"Player {player_name} not found. Skipping.")
+        return None
+
+    if player_name in player_stats_cache:
+        return player_stats_cache[player_name]  # Reuse cached stats
+
+    pings += 1
+    print(f"PINGING NBA, PINGS = {pings}")
+
     gamelog = playergamelog.PlayerGameLog(player_id=player_id)
-    gamelog_df = gamelog.get_data_frames()[0]
-    return gamelog_df.head(num_games)
+    time.sleep(0.75)  # Add a delay to avoid hitting API rate limits
+
+    gamelog_df = gamelog.get_data_frames()[0].head(num_games)
+
+    player_stats_cache[player_name] = gamelog_df  # Cache results
+    return gamelog_df
 
 
 # Function to extract specific stats
@@ -123,6 +135,7 @@ def get_stat_from_last_x_games(gamelog_df: pd.DataFrame, stat: str) -> tuple:
         }
 
     num_games_missed = sum(1 for value in stat_dict.values() if pd.isna(value))
+
     return stat_dict, num_games_missed
 
 
@@ -232,9 +245,9 @@ def print_bet_evaluation(bet_info: BetEvaluation, print_stats: bool = False):
     # If the hit rate is high or print_stats is True, show detailed output
     # TODO: if hit rate < .15, swap over_under...
     if (
-        (hit_rate >= 0.85 and odds_type == OddsType.GOBLIN)
+        (hit_rate >= 0.90 and odds_type == OddsType.GOBLIN)
         or ((hit_rate <= 0.20 or hit_rate >= 0.80) and odds_type == OddsType.STANDARD)
-        or (hit_rate >= 0.5 and odds_type == OddsType.DEMON)
+        or (hit_rate >= 0.55 and odds_type == OddsType.DEMON)
         or print_stats
     ):
         print_detailed_bet_evaluation(bet_info)
@@ -249,16 +262,15 @@ def print_bet_evaluation(bet_info: BetEvaluation, print_stats: bool = False):
 def go_through_player_props_and_evaluate(props: List[Prop], num_games: int = 20):
     """Evaluates a list of Prop objects and prints the results."""
     for prop in props:
-        time.sleep(0.5)  # Add a delay to avoid hitting API rate limits
-
         # Check if the player's stats are in the cache
         if prop.player_name not in player_stats_cache:
             print(f"Player {prop.player_name} not found in cache. Skipping.")
             continue
 
+        # todo fix games missed.  This doesnt include games not played.
         gamelog_df = player_stats_cache[prop.player_name]
 
-        # Convert the human-readable stat name
+        # Convert the computer-readable stat name
         stat_key = STAT_MAPPING.get(prop.stat)
         if not stat_key:
             print(f"Statistic '{prop.stat}' not recognized. Skipping.")
@@ -277,6 +289,7 @@ def go_through_player_props_and_evaluate(props: List[Prop], num_games: int = 20)
             )
             # Now we simply pass bet_info to the printer
             print_bet_evaluation(bet_info)
+
         except KeyError:
             print(f"Statistic '{stat_key}' not found for {prop.player_name}. Skipping.")
 
@@ -296,7 +309,9 @@ def display_player_stats_last_20_games(player_name: str):
     """Displays a nicely formatted summary of a player's last 20 games using the NBA API."""
     # Check if the player's stats are in the cache
     if player_name not in player_stats_cache:
-        print(f"No stats found in cache for: {player_name}")
+        print(
+            f"No stats found in cache for: {player_name} player_stats_cache = {player_stats_cache}"
+        )
         return
 
     gamelog_df = player_stats_cache[player_name]
@@ -372,15 +387,10 @@ def main():
         num_games = args.num_games
 
         # Fetch player ID
-        player_id = get_player_id(player_name)
-        if not player_id:
-            print("Player not found. Exiting.")
-            sys.exit(1)
 
         # Fetch game logs
         try:
-            gamelog_df = get_last_x_game_stats(player_id, num_games)
-            player_stats_cache[player_name] = gamelog_df
+            gamelog_df = get_player_stats(player_name, num_games)
         except Exception as e:
             print(f"Error fetching game logs: {e}")
             sys.exit(1)
@@ -418,14 +428,12 @@ def main():
 
         # Process each player separately
         for player_name, player_props in all_player_props.items():
-            player_id = get_player_id(player_name)
-            if not player_id:
-                print(f"Player {player_name} not found. Skipping.")
-                continue
-
             try:
-                gamelog_df = get_last_x_game_stats(player_id, num_games=20)
+                gamelog_df = get_player_stats(player_name, num_games=20)
                 player_stats_cache[player_name] = gamelog_df
+                print(gamelog_df)
+                if gamelog_df is None or gamelog_df.empty:
+                    continue
             except Exception as e:
                 print(f"Error fetching game logs for {player_name}: {e}")
                 continue

@@ -34,6 +34,7 @@ func main() {
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: false},
 	}
 	client := &http.Client{Transport: tr}
+	// NOTE: league_id=8 == NFL FYI
 	req, err := http.NewRequest("GET", "https://api.prizepicks.com/projections?league_id=7&per_page=250&single_stat=true", nil)
 	if err != nil {
 		log.Fatal(err)
