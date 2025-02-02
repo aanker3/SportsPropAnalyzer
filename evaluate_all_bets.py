@@ -46,6 +46,7 @@ class BetEvaluation:
     mode: float = 0.0
     average: float = 0.0
     odds_type: OddsType = OddsType.STANDARD
+    reasoning: List[str] = field(default_factory=list)
 
 
 # Enum for Over/Under
@@ -120,17 +121,17 @@ def get_player_stats(player_name: str, num_games: int = 20) -> pd.DataFrame:
         .get_data_frames()[0]["TEAM_ID"]
         .iloc[0]
     )
-    time.sleep(0.3)
+    time.sleep(0.4)
 
     # Fetch player's game log
     gamelog_df = playergamelog.PlayerGameLog(player_id=player_id).get_data_frames()[0]
-    time.sleep(0.3)
+    time.sleep(0.4)
 
     # Fetch team's schedule
     team_schedule = teamgamelog.TeamGameLog(
         team_id=team_id, season="2024"
     ).get_data_frames()[0]
-    time.sleep(0.3)
+    time.sleep(0.4)
 
     # Merge game log with team schedule
     merged_df = pd.merge(
@@ -200,8 +201,10 @@ def evaluate_bet(
     """Evaluates a bet and returns a BetEvaluation object."""
     stat_dict, num_games_missed = stat_results
     hits, misses, games_active = 0, 0, 0
-    stat_values = []
-
+    # stat_values = []
+    stat_values = {stat_name: list(stat_dict.values())}
+    print(f"{stat_dict=}")
+    sys.exit()
     for stat in stat_dict.values():
         if pd.isna(stat):  # Skip if stat is NaN
             continue
@@ -226,6 +229,35 @@ def evaluate_bet(
         mode = None
     average = sum(stat_values) / len(stat_values) if stat_values else 0
 
+    # ANALYZE:
+    reasoning = []
+    print(f"{stat_name=}")
+    # if stat_name == "FG3m":
+
+    # TODO REFACTOR
+    if over_under == OverUnder.OVER:
+        if median > 1.3 * bet_target:
+            pct_difference = (median / bet_target) * 100
+            reasoning.append(
+                f"Median ({median}) {pct_difference}% larger than bet_target ({bet_target})"
+            )
+        if average > 1.3 * bet_target:
+            pct_difference = (average / bet_target) * 100
+            reasoning.append(
+                f"Average ({average}) {pct_difference}% larger than bet_target ({bet_target})"
+            )
+    if over_under == OverUnder.UNDER:
+        if median < 0.7 * bet_target:
+            pct_difference = (median / bet_target) * 100
+            reasoning.append(
+                f"Median ({median}) {pct_difference}% smaller than bet_target ({bet_target})"
+            )
+        if average < 0.7 * bet_target:
+            pct_difference = (average / bet_target) * 100
+            reasoning.append(
+                f"Average ({average}) {pct_difference}% smaller than bet_target ({bet_target})"
+            )
+
     # Return the data as a BetEvaluation object
     return BetEvaluation(
         player_name=player_name,
@@ -242,6 +274,7 @@ def evaluate_bet(
         mode=mode,
         average=average,
         odds_type=odds_type,  # Include odds_type
+        reasoning=reasoning,
     )
 
 
@@ -257,6 +290,7 @@ def print_detailed_bet_evaluation(bet_info: BetEvaluation):
     mode = bet_info.mode
     average = bet_info.average
     odds_type = bet_info.odds_type  # Get odds_type
+    reasoning = bet_info.reasoning
 
     display_player_stats_last_x_games(player_name)
     print("\n" + "=" * 50)
@@ -273,6 +307,8 @@ def print_detailed_bet_evaluation(bet_info: BetEvaluation):
     print(f"- Average {stat_name}: {average:.2f}")
     print(f"- Median {stat_name}: {median}")
     print(f"- Mode {stat_name}: {mode}")
+    if reasoning:
+        print(f"- Reasoning: {reasoning}")
     print("=" * 50 + "\n")
 
 
