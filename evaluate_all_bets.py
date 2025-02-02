@@ -38,6 +38,7 @@ class BetEvaluation:
     over_under: str
     hits: int
     misses: int
+    ties: int
     games_active: int
     games_missed: int
     hit_rate: float
@@ -56,6 +57,7 @@ class OverUnder(Enum):
 
 
 # Mapping of human-readable stat names to NBA API stat keys
+# TODO Figure out exactly what this is a mapping to
 STAT_MAPPING = {
     "Points": "PTS",
     "Rebounds": "REB",  # Total rebounds
@@ -190,7 +192,8 @@ def get_stat_from_last_x_games(
 
 # Function to evaluate a bet
 def evaluate_bet(
-    stat_results: tuple,
+    gamelog_df,
+    stat_results: tuple,  # Can remove.
     bet_target: float,
     over_under: OverUnder,
     num_games: int,
@@ -199,22 +202,47 @@ def evaluate_bet(
     odds_type: Optional[OddsType],
 ) -> BetEvaluation:
     """Evaluates a bet and returns a BetEvaluation object."""
-    stat_dict, num_games_missed = stat_results
-    hits, misses, games_active = 0, 0, 0
+    _, num_games_missed = stat_results
+    hits = misses = ties = games_active = 0
     stat_values = []
-    for stat in stat_dict.values():
-        if pd.isna(stat):  # Skip if stat is NaN
+
+    stat_key = STAT_MAPPING.get(stat_name)
+    if not stat_key:
+        print(f"Statistic '{stat_name}' not recognized")
+        return None
+
+    for _, row in gamelog_df.iterrows():
+        if not row["PLAYED"]:  # Skip games where the player didn't play
             continue
 
-        stat_values.append(stat)
+        # Adjust evaluation based on minutes played (optional)
+        minutes_played = row.get("MIN", 0)
 
-        if over_under == OverUnder.OVER and stat > bet_target:
+        if minutes_played == 0:  # Example: Skip games with less than 10 minutes played
+            # Missed game.
+            continue
+
+        # Handle multi-stat bets (e.g., "Pts+Rebs+Asts")
+        if "+" in stat_key:
+            stat_keys = stat_key.split(
+                "+"
+            )  # Split into individual stats (e.g., ["PTS", "REB", "AST"])
+            stat_value = sum(row.get(key, 0) for key in stat_keys)  # Sum the values
+        else:  # Handle single-stat bets
+            stat_value = row.get(stat_key, 0)
+
+        stat_values.append(stat_value)
+
+        if over_under == OverUnder.OVER and stat_value > bet_target:
             hits += 1
-        elif over_under == OverUnder.UNDER and stat < bet_target:
+        elif over_under == OverUnder.UNDER and stat_value < bet_target:
             hits += 1
+        elif stat_value == bet_target:
+            ties += 1
         else:
             misses += 1
-        games_active = num_games - num_games_missed
+
+        games_active += 1
 
     hit_rate = hits / games_active if games_active > 0 else 0
 
@@ -228,8 +256,8 @@ def evaluate_bet(
 
     # ANALYZE:
     reasoning = []
-    print(f"{stat_name=}")
-    # if stat_name == "FG3m":
+    # if stat_key == "FG3M":
+    # ...
 
     # TODO REFACTOR
     if over_under == OverUnder.OVER:
@@ -263,6 +291,7 @@ def evaluate_bet(
         over_under=over_under.value,
         hits=hits,
         misses=misses,
+        ties=ties,
         games_active=games_active,
         games_missed=num_games_missed,
         hit_rate=hit_rate,
@@ -299,6 +328,8 @@ def print_detailed_bet_evaluation(bet_info: BetEvaluation):
     print("-" * 50)
     print(f"- Hits: {bet_info.hits}")
     print(f"- Misses: {bet_info.misses}")
+    if bet_info.ties:
+        print(f"- Ties: {bet_info.ties}")
     print(f"- Games Active: {bet_info.games_active}")
     print(f"- Games Missed: {bet_info.games_missed}")
     print(f"- Average {stat_name}: {average:.2f}")
@@ -327,7 +358,7 @@ def print_bet_evaluation(bet_info: BetEvaluation, print_stats: bool = False):
     # TODO: if hit rate < .15, swap over_under...
     if (
         (hit_rate >= 0.90 and odds_type == OddsType.GOBLIN)
-        or ((hit_rate <= 0.20 or hit_rate >= 0.80) and odds_type == OddsType.STANDARD)
+        or (hit_rate >= 0.80 and odds_type == OddsType.STANDARD)
         or (hit_rate >= 0.55 and odds_type == OddsType.DEMON)
         or print_stats
     ):
@@ -359,17 +390,26 @@ def go_through_player_props_and_evaluate(props: List[Prop], num_games: int = 20)
 
         try:
             stat_results = get_stat_from_last_x_games(gamelog_df, stat_key)
-            bet_info = evaluate_bet(
-                stat_results,
-                prop.target,
-                OverUnder(prop.over_under),
-                num_games,
-                prop.player_name,
-                prop.stat,
-                prop.odds_type,  # Pass odds_type
+
+            # Run over & under on standard bets.
+            over_under_values = (
+                [OverUnder.OVER, OverUnder.UNDER]
+                if prop.odds_type == OddsType.STANDARD
+                else [OverUnder(prop.over_under)]
             )
-            # Now we simply pass bet_info to the printer
-            print_bet_evaluation(bet_info)
+
+            for over_under in over_under_values:
+                bet_info = evaluate_bet(
+                    gamelog_df,
+                    stat_results,
+                    prop.target,
+                    over_under,
+                    num_games,
+                    prop.player_name,
+                    prop.stat,
+                    prop.odds_type,
+                )
+                print_bet_evaluation(bet_info)
 
         except KeyError:
             print(f"Statistic '{stat_key}' not found for {prop.player_name}. Skipping.")
@@ -467,7 +507,7 @@ def main():
     if args.player and args.statistic and args.bet_target and args.over_under:
         # Process a single player/statistic evaluation
         player_name = args.player
-        statistic = args.statistic.upper()
+        statistic = args.statistic
         bet_target = args.bet_target
         over_under = args.over_under
         num_games = args.num_games
@@ -490,6 +530,7 @@ def main():
 
         # Evaluate bet
         bet_info = evaluate_bet(
+            gamelog_df,
             stat_results,
             bet_target,
             OverUnder(over_under),

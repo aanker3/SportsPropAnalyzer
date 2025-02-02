@@ -1,3 +1,22 @@
 https://api.prizepicks.com/projections?league_id=7&per_page=250&single_stat=true|
 
-HAS DEMONS AND GOBLINS!!!!
+CHECK HAS DEMONS AND GOBLINS!!!!
+CHECK FIX AVERAGE. IT SHOULDNT COUNT GAMES NOT PLAYED.  I SHOULD HAVE ALL STATS IN EVALUATE.
+
+
+USE DEMONS AND GOBLINS.
+
+Refactor:
+use class (shouldnt use globals)
+
+add ties to hit rate somehow?
+
+Can remove get_stat_from_last_x_games() not really using it????
+
+Further Analysis - 
+-Look at news sources, ask AI if ok.  Injured teammates...
+-Look at minute trends
+-Look at season averages
+-Look at trends.
+-Compare last 10Games/20Games/XGames (have it custom to where it can tell us the best pct)
+-Use Demons and Goblins, calculate EV to see if bet is worth.
