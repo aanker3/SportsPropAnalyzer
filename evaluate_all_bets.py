@@ -201,10 +201,7 @@ def evaluate_bet(
     """Evaluates a bet and returns a BetEvaluation object."""
     stat_dict, num_games_missed = stat_results
     hits, misses, games_active = 0, 0, 0
-    # stat_values = []
-    stat_values = {stat_name: list(stat_dict.values())}
-    print(f"{stat_dict=}")
-    sys.exit()
+    stat_values = []
     for stat in stat_dict.values():
         if pd.isna(stat):  # Skip if stat is NaN
             continue
