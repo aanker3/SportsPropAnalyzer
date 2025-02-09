@@ -1,11 +1,10 @@
 import time
+import pandas as pd
 from sqlalchemy.orm import Session
-from nba_api.stats.endpoints import commonallplayers, playergamelog, commonplayerinfo, teamdetails, commonteamyears, teamgamelog
+from nba_api.stats.endpoints import commonallplayers, playergamelog, commonplayerinfo, teamgamelog
 from alphabetter.nba_backend.database import get_db
 from alphabetter.nba_backend.models import PlayerStats, PlayerGameLog, TeamInfo
-import sys
 from nba_api.stats.static import teams
-
 
 # Function to fetch player stats
 def fetch_player_stats(player_id: int) -> list:
@@ -15,10 +14,32 @@ def fetch_player_stats(player_id: int) -> list:
     team = player_info["TEAM_NAME"].iloc[0]
     team_id = player_info["TEAM_ID"].iloc[0]
 
+    # Fetch the player's game logs
     gamelog_df = playergamelog.PlayerGameLog(player_id=player_id, season='2024-25').get_data_frames()[0]
 
+    # Fetch the team's schedule
+    team_schedule_df = teamgamelog.TeamGameLog(team_id=team_id, season='2024-25').get_data_frames()[0]
+
+    # Merge game log with team schedule
+    merged_df = pd.merge(
+        team_schedule_df[["Game_ID", "GAME_DATE", "MATCHUP", "WL"]],
+        gamelog_df,
+        on="Game_ID",
+        how="left",
+        suffixes=("_team", "_player"),
+    ).rename(
+        columns={
+            "WL_team": "WL",
+            "GAME_DATE_team": "GAME_DATE",
+            "MATCHUP_team": "MATCHUP",
+        }
+    )
+
+    # Fill NaN values with 0
+    merged_df = merged_df.fillna(0)
+
     game_logs = []
-    for _, row in gamelog_df.iterrows():
+    for _, row in merged_df.iterrows():
         game_log = {
             "player_id": int(player_id),
             "team_id": int(team_id),
@@ -121,7 +142,7 @@ def fetch_team_gamelog(team_id: int) -> list:
         # Skip entries with NaN values
         if row.isnull().any():
             continue
-        
+
         team_log = {
             "team_id": int(row["Team_ID"]),
             "game_id": int(row["Game_ID"]),
@@ -190,7 +211,6 @@ def store_team_gamelog(db: Session, team_id: int, team_logs: list):
         db.add(new_team_info)
     db.commit()
 
-
 def main():
     db: Session = next(get_db())
 
@@ -207,7 +227,6 @@ def main():
         except Exception as e:
             print(f"Error fetching/storing stats for player ID: {player_id} - {e}")
 
-    # FIX TEAM_INFO_LIST
     # Fetch and store team game logs
     active_team_ids = get_active_team_ids()
     for team_id in active_team_ids:
