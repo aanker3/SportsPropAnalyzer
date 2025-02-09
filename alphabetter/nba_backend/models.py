@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, Float, Date
 from alphabetter.nba_backend.database import Base
+from enum import Enum
 
 class PlayerStats(Base):
     __tablename__ = "player_stats"
@@ -46,10 +47,6 @@ class TeamInfo(Base):
 
     team_id = Column(Integer, primary_key=True, index=True)
     game_id = Column(Integer, primary_key=True, index=True)
-    # abbreviation = Column(String)
-    # city = Column(String)
-    # state = Column(String)
-    # year_founded = Column(Integer)
     game_date = Column(Date)
     matchup = Column(String)
     wl = Column(String)
@@ -75,3 +72,26 @@ class TeamInfo(Base):
     tov = Column(Float)
     pf = Column(Float)
     pts = Column(Float)
+
+class OddsType(Enum):
+    STANDARD = "standard"
+    DEMON = "demon"
+    GOBLIN = "goblin"
+
+    @staticmethod
+    def from_string(value: str) -> "OddsType":
+        """Convert a string to an OddsType enum, defaulting to STANDARD."""
+        try:
+            return OddsType(value.lower())
+        except ValueError:
+            return OddsType.STANDARD  # Default if an unknown value appears
+
+class PrizePicksProp(Base):
+    __tablename__ = "prize_picks_props"
+
+    id = Column(Integer, primary_key=True, index=True)
+    player_name = Column(String, index=True)
+    stat = Column(String)
+    target = Column(Float)
+    over_under = Column(String)
+    odds_type = Column(String)  # Store as string.  Convert later

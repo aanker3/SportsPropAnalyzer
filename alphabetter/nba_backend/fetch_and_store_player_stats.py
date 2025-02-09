@@ -14,12 +14,14 @@ def fetch_player_stats(player_id: int) -> list:
     team = player_info["TEAM_NAME"].iloc[0]
     team_id = player_info["TEAM_ID"].iloc[0]
 
+
+    #TODO: Eventually read PlayerGameLog from the database instead of fetching it every time!
     # Fetch the player's game logs
     gamelog_df = playergamelog.PlayerGameLog(player_id=player_id, season='2024-25').get_data_frames()[0]
-
+    time.sleep(.2)
     # Fetch the team's schedule
     team_schedule_df = teamgamelog.TeamGameLog(team_id=team_id, season='2024-25').get_data_frames()[0]
-
+    time.sleep(.2)
     # Merge game log with team schedule
     merged_df = pd.merge(
         team_schedule_df[["Game_ID", "GAME_DATE", "MATCHUP", "WL"]],
@@ -223,7 +225,7 @@ def main():
             player_name, team, team_id, game_logs = fetch_player_stats(player_id)
             store_player_stats(db, player_id, player_name, team, team_id, game_logs)
             print(f"Stored stats for player ID: {player_id}")
-            time.sleep(1)  # To avoid hitting API rate limits
+            time.sleep(.5)  # To avoid hitting API rate limits
         except Exception as e:
             print(f"Error fetching/storing stats for player ID: {player_id} - {e}")
 
@@ -234,7 +236,7 @@ def main():
             team_logs = fetch_team_gamelog(team_id)
             store_team_gamelog(db, team_id, team_logs)
             print(f"Stored game logs for team ID: {team_id}")
-            time.sleep(1)  # To avoid hitting API rate limits
+            time.sleep(.5)  # To avoid hitting API rate limits
         except Exception as e:
             print(f"Error fetching/storing game logs for team ID: {team_id} - {e}")
 
