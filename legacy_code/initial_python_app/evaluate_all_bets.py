@@ -418,7 +418,7 @@ def go_through_player_props_and_evaluate(props: List[Prop], num_games: int = 20)
 def update_props_file():
     try:
         print("Fetching props from PrizePicks...")
-        subprocess.run(["get_props/get_props_prizepicks.exe"], check=True)
+        subprocess.run(["./get_props/get_props_prizepicks.exe"], check=True)
         print("Props successfully fetched.")
     except subprocess.CalledProcessError as e:
         print(f"Error running get_props_prizepicks.exe: {e}")

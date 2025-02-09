@@ -31,7 +31,7 @@ class Prop:
 
 def load_bets_json(filepath: str = FILE_PATH) -> dict:
     """Read and parse JSON data from the PrizePicks file."""
-    with open(filepath, "r") as file:
+    with open(filepath, "r", encoding='utf-8') as file:
         return json.load(file)
 
 
