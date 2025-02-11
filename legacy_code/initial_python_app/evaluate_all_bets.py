@@ -15,9 +15,10 @@ from dataclasses import dataclass, field
 import statistics
 from collections import defaultdict
 import subprocess
+import io
 
 player_stats_cache = {}
-
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 # Define the PlayerData class
 @dataclass

@@ -7,7 +7,7 @@ from get_props.get_props import load_bets_json, create_props
 
 # Function to call the executable and generate the JSON file
 def generate_prize_picks_json():
-    subprocess.run(["./get_props/get_props_prizepicks.exe"], check=True)
+    subprocess.run(["./get_props/gen_nba_prizepicks.exe"], check=True)
 
 # Function to store PrizePicks props in the database
 def store_prize_picks_props(db: Session, props: list):

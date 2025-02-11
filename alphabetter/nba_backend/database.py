@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
+#TODO REMOVE
 DATABASE_URL = "postgresql://postgres:BigStink44@localhost/nba_stats"
 
 # Connect to PostgreSQL
