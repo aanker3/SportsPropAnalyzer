@@ -14,8 +14,6 @@ def fetch_player_stats(player_id: int) -> list:
     team = player_info["TEAM_NAME"].iloc[0]
     team_id = player_info["TEAM_ID"].iloc[0]
 
-
-    #TODO: Eventually read PlayerGameLog from the database instead of fetching it every time!
     # Fetch the player's game logs
     gamelog_df = playergamelog.PlayerGameLog(player_id=player_id, season='2024-25').get_data_frames()[0]
     time.sleep(.2)
@@ -47,7 +45,7 @@ def fetch_player_stats(player_id: int) -> list:
             "team_id": int(team_id),
             "game_date": row["GAME_DATE"],
             "matchup": row["MATCHUP"],
-            "wl": row["WL"],
+            # "wl": row["WL"],
             "min": float(row["MIN"]),
             "pts": float(row["PTS"]),
             "oreb": float(row["OREB"]),
@@ -105,7 +103,7 @@ def store_player_stats(db: Session, player_id: int, player_name: str, team: str,
             team_id=int(log["team_id"]),
             game_date=log["game_date"],
             matchup=log["matchup"],
-            wl=log["wl"],
+            # wl=log["wl"],
             min=float(log["min"]),
             pts=float(log["pts"]),
             oreb=float(log["oreb"]),

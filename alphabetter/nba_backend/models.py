@@ -22,7 +22,7 @@ class PlayerGameLog(Base):
     team_id = Column(Integer)
     game_date = Column(Date)
     matchup = Column(String)
-    wl = Column(String)
+    # wl = Column(String)
     min = Column(Float)
     pts = Column(Float)
     oreb = Column(Float)

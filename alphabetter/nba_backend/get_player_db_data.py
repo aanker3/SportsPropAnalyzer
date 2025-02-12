@@ -20,7 +20,7 @@ player_game_logs = db.query(PlayerGameLog).all()
 # Print player game logs
 for game_log in player_game_logs:
     print(f"Player ID: {game_log.player_id}, Team ID: {game_log.team_id}, Game Date: {game_log.game_date}, "
-          f"Matchup: {game_log.matchup}, WL: {game_log.wl}, Minutes: {game_log.min}, Points: {game_log.pts}, "
+          f"Matchup: {game_log.matchup}, WL: DNE, Minutes: {game_log.min}, Points: {game_log.pts}, "
           f"Offensive Rebounds: {game_log.oreb}, Defensive Rebounds: {game_log.dreb}, Rebounds: {game_log.reb}, "
           f"Assists: {game_log.ast}, Steals: {game_log.stl}, Blocks: {game_log.blk}, Turnovers: {game_log.tov}, "
           f"Field Goals Made: {game_log.fgm}, Field Goals Attempted: {game_log.fga}, Field Goal Percentage: {game_log.fg_pct}, "
