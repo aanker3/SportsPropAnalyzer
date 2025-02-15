@@ -225,13 +225,20 @@ def main():
             print(f"Stats for player ID: {player_id} already exist. Skipping.")
             continue
 
-        try:
-            player_name, team, team_id, game_logs = fetch_player_stats(player_id)
-            store_player_stats(db, player_id, player_name, team, team_id, game_logs)
-            print(f"Stored stats for player ID: {player_id}")
-            time.sleep(.5)  # To avoid hitting API rate limits
-        except Exception as e:
-            print(f"Error fetching/storing stats for player ID: {player_id} - {e}")
+        retries = 5
+        while retries > 0:
+            try:
+                player_name, team, team_id, game_logs = fetch_player_stats(player_id)
+                store_player_stats(db, player_id, player_name, team, team_id, game_logs)
+                print(f"Stored stats for player ID: {player_id}")
+                time.sleep(.5)  # To avoid hitting API rate limits
+                break
+            except Exception as e:
+                retries -= 1
+                print(f"Error fetching/storing stats for player ID: {player_id} - {e}. Retrying in 3 minutes... ({5 - retries}/5)")
+                time.sleep(180)  # Wait for 2 minutes before retrying
+        if retries == 0:
+            print(f"Failed to fetch/store stats for player ID: {player_id} after multiple attempts.")
 
     # Fetch and store team game logs
     active_team_ids = get_active_team_ids()
@@ -242,13 +249,20 @@ def main():
             print(f"Game logs for team ID: {team_id} already exist. Skipping.")
             continue
 
-        try:
-            team_logs = fetch_team_gamelog(team_id)
-            store_team_gamelog(db, team_id, team_logs)
-            print(f"Stored game logs for team ID: {team_id}")
-            time.sleep(.5)  # To avoid hitting API rate limits
-        except Exception as e:
-            print(f"Error fetching/storing game logs for team ID: {team_id} - {e}")
+        retries = 5
+        while retries > 0:
+            try:
+                team_logs = fetch_team_gamelog(team_id)
+                store_team_gamelog(db, team_id, team_logs)
+                print(f"Stored game logs for team ID: {team_id}")
+                time.sleep(.5)  # To avoid hitting API rate limits
+                break
+            except Exception as e:
+                retries -= 1
+                print(f"Error fetching/storing game logs for team ID: {team_id} - {e}. Retrying in 3 minutes... ({5 - retries}/5)")
+                time.sleep(180)  # Wait for 2 minutes before retrying
+        if retries == 0:
+            print(f"Failed to fetch/store game logs for team ID: {team_id} after multiple attempts.")
 
     print("Stored team information successfully!")
 
