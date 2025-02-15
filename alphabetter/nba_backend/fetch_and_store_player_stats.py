@@ -1,7 +1,7 @@
 import time
 import pandas as pd
 from sqlalchemy.orm import Session
-from nba_api.stats.endpoints import commonallplayers, playergamelog, commonplayerinfo, teamgamelog
+from nba_api.stats.endpoints import commonallplayers, playergamelog, commonplayerinfo, teamgamelog, teaminfocommon
 from alphabetter.nba_backend.database import get_db
 from alphabetter.nba_backend.models import PlayerStats, PlayerGameLog, TeamInfo
 from nba_api.stats.static import teams
@@ -13,7 +13,6 @@ def fetch_player_stats(player_id: int) -> list:
     player_name = player_info["DISPLAY_FIRST_LAST"].iloc[0]
     team = player_info["TEAM_NAME"].iloc[0]
     team_id = player_info["TEAM_ID"].iloc[0]
-
     # Fetch the player's game logs
     gamelog_df = playergamelog.PlayerGameLog(player_id=player_id, season='2024-25').get_data_frames()[0]
     time.sleep(.2)
@@ -218,7 +217,14 @@ def main():
     players = commonallplayers.CommonAllPlayers(is_only_current_season=1).get_data_frames()[0]
     player_ids = players["PERSON_ID"].tolist()
 
-    for player_id in player_ids[:10]:
+    # for player_id in player_ids[:10]:
+    for player_id in player_ids:
+        # Check if player stats already exist in the database
+        existing_stats = db.query(PlayerStats).filter(PlayerStats.player_id == player_id).first()
+        if existing_stats:
+            print(f"Stats for player ID: {player_id} already exist. Skipping.")
+            continue
+
         try:
             player_name, team, team_id, game_logs = fetch_player_stats(player_id)
             store_player_stats(db, player_id, player_name, team, team_id, game_logs)
@@ -230,6 +236,12 @@ def main():
     # Fetch and store team game logs
     active_team_ids = get_active_team_ids()
     for team_id in active_team_ids:
+        # Check if team game logs already exist in the database
+        existing_logs = db.query(TeamInfo).filter(TeamInfo.team_id == team_id).first()
+        if existing_logs:
+            print(f"Game logs for team ID: {team_id} already exist. Skipping.")
+            continue
+
         try:
             team_logs = fetch_team_gamelog(team_id)
             store_team_gamelog(db, team_id, team_logs)
