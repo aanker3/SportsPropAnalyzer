@@ -91,6 +91,7 @@ class PrizePicksProp(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     player_name = Column(String, index=True)
+    player_id = Column(Integer, index=True)
     stat = Column(String)
     target = Column(Float)
     over_under = Column(String)
