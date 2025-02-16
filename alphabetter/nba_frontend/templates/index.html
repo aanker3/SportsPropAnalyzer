@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PrizePicks Props</title>
+</head>
+<body>
+    <h1>PrizePicks Props</h1>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Player Name</th>
+                <th>Player ID</th>
+                <th>Stat</th>
+                <th>Target</th>
+                <th>Over/Under</th>
+                <th>Odds Type</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for prop in props %}
+            <tr>
+                <td>{{ prop.id }}</td>
+                <td>{{ prop.player_name }}</td>
+                <td>{{ prop.player_id }}</td>
+                <td>{{ prop.stat }}</td>
+                <td>{{ prop.target }}</td>
+                <td>{{ prop.over_under }}</td>
+                <td>{{ prop.odds_type }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
