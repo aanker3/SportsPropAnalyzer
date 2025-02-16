@@ -235,8 +235,8 @@ def main():
                 break
             except Exception as e:
                 retries -= 1
-                print(f"Error fetching/storing stats for player ID: {player_id} - {e}. Retrying in 3 minutes... ({5 - retries}/5)")
-                time.sleep(180)  # Wait for 2 minutes before retrying
+                print(f"Error fetching/storing stats for player ID: {player_id} - {e}. Retrying in 5 minutes... ({5 - retries}/5)")
+                time.sleep(5*60)  # Wait for 2 minutes before retrying
         if retries == 0:
             print(f"Failed to fetch/store stats for player ID: {player_id} after multiple attempts.")
 
@@ -259,8 +259,8 @@ def main():
                 break
             except Exception as e:
                 retries -= 1
-                print(f"Error fetching/storing game logs for team ID: {team_id} - {e}. Retrying in 3 minutes... ({5 - retries}/5)")
-                time.sleep(180)  # Wait for 2 minutes before retrying
+                print(f"Error fetching/storing game logs for team ID: {team_id} - {e}. Retrying in 5 minutes... ({5 - retries}/5)")
+                time.sleep(5*60)  # Wait for 2 minutes before retrying
         if retries == 0:
             print(f"Failed to fetch/store game logs for team ID: {team_id} after multiple attempts.")
 
