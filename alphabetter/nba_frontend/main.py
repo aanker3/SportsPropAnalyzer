@@ -1,9 +1,9 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func
 from alphabetter.nba_backend.database import Base, get_db, DATABASE_URL
-from alphabetter.nba_backend.models import PrizePicksProp, TeamInfo
+from alphabetter.nba_backend.models import PrizePicksProp, TeamInfo, PlayerStats
 
 app = FastAPI()
 
@@ -76,6 +76,29 @@ async def get_teams():
         for team in teams
     ]
     return {"teams": teams_list}
+
+@app.get("/api/player/{player_name}")
+async def get_player_id(player_name: str):
+    # Query player ID for the player using case-insensitive match
+    player = session.query(PlayerStats).filter(func.lower(PlayerStats.name) == player_name.lower()).first()
+    if not player:
+        # If player is not found, return all available props
+        props = session.query(PrizePicksProp).all()
+        props_list = [
+            {
+                "id": prop.id,
+                "player_name": prop.player_name,
+                "player_id": prop.player_id,
+                "stat": prop.stat,
+                "target": prop.target,
+                "over_under": prop.over_under,
+                "odds_type": prop.odds_type,
+            }
+            for prop in props
+        ]
+        return {"error": "Player not found", "props": props_list}
+
+    return {"player_id": player.player_id}
 
 if __name__ == '__main__':
     import uvicorn
