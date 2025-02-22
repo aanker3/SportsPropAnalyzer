@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 
-function Props() {
+function PlayerProps() {
   const [props, setProps] = useState([]);
 
   useEffect(() => {
@@ -47,4 +47,4 @@ function Props() {
   );
 }
 
-export default Props;
+export default PlayerProps;

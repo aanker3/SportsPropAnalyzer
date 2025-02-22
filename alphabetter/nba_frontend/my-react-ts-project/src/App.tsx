@@ -1,31 +1,26 @@
 import React from 'react';
 import { BrowserRouter as Router, Route, Routes, Link } from 'react-router-dom';
-import Props from './Props';
-import TeamInfo from './TeamInfo';
 import PlayerId from './PlayerId';
-import './App.css';
+import PlayerProps from './PlayerProps';
 
 function App() {
   return (
     <Router>
-      <div className="App">
+      <div>
         <nav>
           <ul>
             <li>
-              <Link to="/props">Props</Link>
+              <Link to="/player-id">Player ID</Link>
             </li>
             <li>
-              <Link to="/team-info">Team Info</Link>
-            </li>
-            <li>
-              <Link to="/player-id">PlayerId</Link>
+              <Link to="/player-props">Player Props</Link>
             </li>
           </ul>
         </nav>
+
         <Routes>
-          <Route path="/props" element={<Props />} />
-          <Route path="/team-info" element={<TeamInfo />} />
           <Route path="/player-id" element={<PlayerId />} />
+          <Route path="/player-props" element={<PlayerProps />} />
         </Routes>
       </div>
     </Router>
