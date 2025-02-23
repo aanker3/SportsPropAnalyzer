@@ -95,4 +95,16 @@ class PrizePicksProp(Base):
     stat = Column(String)
     target = Column(Float)
     over_under = Column(String)
-    odds_type = Column(String)  # Store as string.  Convert later
+    odds_type = Column(String)  # Store as string.  Convert laterfrom sqlalchemy import Column, Integer, Float, String
+from alphabetter.nba_backend.database import Base
+
+class PlayerStatsCalculated(Base):
+    __tablename__ = "player_stats_calculated"
+
+    id = Column(Integer, primary_key=True, index=True)
+    player_id = Column(Integer, index=True)
+    player_name = Column(String, index=True)
+    prop_id = Column(Integer, index=True)
+    l5_hit_rate = Column(Float)
+    l10_hit_rate = Column(Float)
+    l20_hit_rate = Column(Float)

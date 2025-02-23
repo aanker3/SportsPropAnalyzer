@@ -1,9 +1,18 @@
 from sqlalchemy.orm import Session
 from alphabetter.nba_backend.database import get_db
-from alphabetter.nba_backend.models import PlayerStats, PlayerGameLog, TeamInfo
+from alphabetter.nba_backend.models import PlayerStats, PlayerGameLog, TeamInfo, PrizePicksProp
+from common.nba_api_common import get_player_id 
+#todo: if i get a html issue when fetching, wait 3 minutes and try again.
+
 
 # Create a new session
 db: Session = next(get_db())
+
+# Query all PrizePicks props
+props = db.query(PrizePicksProp).all()
+for prop in props:
+    print(f"Prop ID: {prop.id}, Player ID: {get_player_id(prop.player_name)}, Stat: {prop.stat}, "
+          f"Line: {prop.target}, Over_Under: {prop.over_under}, odds_type: {prop.odds_type}")
 
 # Query all player stats
 players = db.query(PlayerStats).all()
