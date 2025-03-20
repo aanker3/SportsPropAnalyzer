@@ -46,8 +46,8 @@ async def calculate_stats(prop_id: int, db: Session = Depends(get_db)):
 async def get_player_id_endpoint(player_name: str, db: Session = Depends(get_db)):
     return get_player_id(player_name, db)
 
-@app.get("/api/last_x/{prop_id}/{last_x}")
-async def get_player_last_x(prop_id: int, last_x: int, db: Session = Depends(get_db)):
+@app.get("/api/last_x/{prop_id}/{num_games}")
+async def get_player_last_x(prop_id: int, num_games: int, db: Session = Depends(get_db)):
 
     prop = db.query(PrizePicksProp).filter(PrizePicksProp.id == prop_id).first()
     if not prop:
@@ -73,11 +73,11 @@ async def get_player_last_x(prop_id: int, last_x: int, db: Session = Depends(get
         "FG Attempted": "fga",  # Field goals attempted
         "3-PT Attempted": "fg3a",  # 3-Point field goals attempted
         # Derived stats
-        "Rebs+Asts": "reb+ast",  # Rebounds + Assists
-        "Pts+Rebs+Asts": "pts+reb+ast",  # Points + Rebounds + Assists
-        "Pts+Asts": "pts+ast",  # Points + Assists
-        "Pts+Rebs": "pts+reb",  # Points + Rebounds
-        "Blks+Stls": "blk+stl",  # Blocks + Steals
+        "Rebs+Asts": ["reb", "ast"],  # Rebounds + Assists
+        "Pts+Rebs+Asts": ["pts", "reb", "ast"],  # Points + Rebounds + Assists
+        "Pts+Asts": ["pts", "ast"],  # Points + Assists
+        "Pts+Rebs": ["pts", "reb"],  # Points + Rebounds
+        "Blks+Stls": ["blk", "stl"], 
     }
 
 
@@ -87,19 +87,22 @@ async def get_player_last_x(prop_id: int, last_x: int, db: Session = Depends(get
 
     game_logs = db.query(PlayerGameLog).filter(
         PlayerGameLog.player_id == player_id
-    ).order_by(PlayerGameLog.game_date.desc()).limit(last_x).all()
+    ).order_by(PlayerGameLog.game_date.desc()).limit(num_games).all()
 
     if not game_logs:
         return {"message": "No game logs found for the player."}
 
     result_info = []
     for game_log in game_logs:
-        game_stat = getattr(game_log, stat_type)
+        if isinstance(stat_type, list):  # Handle compound stats
+            game_stat = sum(getattr(game_log, stat) for stat in stat_type)
+        else:  # Handle single stats
+            game_stat = getattr(game_log, stat_type)
+
         game_minutes = getattr(game_log, "min")
         game_date = getattr(game_log, "game_date")
-        game_matchup = getattr(game_log, "matchup") 
-        print(f"game_stat = {game_stat}")
-
+        game_matchup = getattr(game_log, "matchup")
+        
         result_info.append({
             "game_date": game_date,
             "matchup": game_matchup,
