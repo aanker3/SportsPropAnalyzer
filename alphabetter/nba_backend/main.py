@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from alphabetter.nba_backend.database import get_db
-from alphabetter.nba_backend.models import PlayerGameLog, PrizePicksProp
+from alphabetter.nba_backend.models import PlayerGameLog, PrizePicksProp, PlayerStatsCalculated
 from alphabetter.nba_backend.stat_collector.lastx import calculate_hit_rates, store_calculated_stats
 from alphabetter.nba_backend.player_utils import get_player_id
 from alphabetter.nba_backend.crud.player_gamelogs import fetch_player_gamelogs
@@ -32,6 +32,11 @@ async def get_player_gamelogs(player_name: str, db: Session = Depends(get_db)):
 async def get_props(db: Session = Depends(get_db)):
     props = db.query(PrizePicksProp).all()
     return {"props": props}
+
+@app.get("/api/player-stats-calculated")
+async def get_player_stats_calculated(db: Session = Depends(get_db)):
+    stats = db.query(PlayerStatsCalculated).all()
+    return {"stats": stats}
 
 @app.post("/api/calculate-stats/{prop_id}")
 async def calculate_stats(prop_id: int, db: Session = Depends(get_db)):
@@ -102,7 +107,7 @@ async def get_player_last_x(prop_id: int, num_games: int, db: Session = Depends(
         game_minutes = getattr(game_log, "min")
         game_date = getattr(game_log, "game_date")
         game_matchup = getattr(game_log, "matchup")
-        
+
         result_info.append({
             "game_date": game_date,
             "matchup": game_matchup,

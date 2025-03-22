@@ -16,20 +16,37 @@ import annotationPlugin from 'chartjs-plugin-annotation';
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, annotationPlugin);
 
 function PlayerProps() {
-  const [props, setProps] = useState([]);
+  const [props, setProps] = useState([]); // Props data
+  const [stats, setStats] = useState({}); // Stats data mapped by prop_id
   const [selectedProp, setSelectedProp] = useState(null); // For modal
   const [chartData, setChartData] = useState(null); // Chart data for the modal
   const [chartOptions, setChartOptions] = useState(null); // Chart options for the modal
   const [error, setError] = useState(null);
 
+  // Fetch props and stats
   useEffect(() => {
+    // Fetch props
     axios
       .get('http://127.0.0.1:8000/api/props')
       .then((response) => {
         setProps(response.data.props);
       })
       .catch((error) => {
-        console.error('There was an error fetching the data!', error);
+        console.error('Error fetching props:', error);
+      });
+
+    // Fetch stats
+    axios
+      .get('http://127.0.0.1:8000/api/player-stats-calculated')
+      .then((response) => {
+        const statsMap = {};
+        response.data.stats.forEach((stat) => {
+          statsMap[stat.prop_id] = stat; // Map stats by prop_id for easy lookup
+        });
+        setStats(statsMap);
+      })
+      .catch((error) => {
+        console.error('Error fetching stats:', error);
       });
   }, []);
 
@@ -113,29 +130,38 @@ function PlayerProps() {
           <tr>
             <th>ID</th>
             <th>Player Name</th>
-            <th>Player ID</th>
             <th>Stat</th>
             <th>Target</th>
             <th>Over/Under</th>
             <th>Odds Type</th>
+            <th>L5 Hit Rate</th>
+            <th>L10 Hit Rate</th>
+            <th>L20 Hit Rate</th>
+            <th>Last %</th>
           </tr>
         </thead>
         <tbody>
-          {props.map((prop) => (
-            <tr
-              key={prop.id}
-              onClick={() => handleRowClick(prop)} // Open modal with chart
-              style={{ cursor: 'pointer' }}
-            >
-              <td>{prop.id}</td>
-              <td>{prop.player_name}</td>
-              <td>{prop.player_id}</td>
-              <td>{prop.stat}</td>
-              <td>{prop.target}</td>
-              <td>{prop.over_under}</td>
-              <td>{prop.odds_type}</td>
-            </tr>
-          ))}
+          {props.map((prop) => {
+            const stat = stats[prop.id] || {}; // Get stats for the current prop
+            return (
+              <tr
+                key={prop.id}
+                onClick={() => handleRowClick(prop)} // Open modal with chart
+                style={{ cursor: 'pointer' }}
+              >
+                <td>{prop.id}</td>
+                <td>{prop.player_name}</td>
+                <td>{prop.stat}</td>
+                <td>{prop.target}</td>
+                <td>{prop.over_under}</td>
+                <td>{prop.odds_type}</td>
+                <td>{stat.l5_hit_rate ? `${(stat.l5_hit_rate * 100).toFixed(1)}%` : 'N/A'}</td>
+                <td>{stat.l10_hit_rate ? `${(stat.l10_hit_rate * 100).toFixed(1)}%` : 'N/A'}</td>
+                <td>{stat.l20_hit_rate ? `${(stat.l20_hit_rate * 100).toFixed(1)}%` : 'N/A'}</td>
+                <td>{stat.last_percent_total ? `${stat.last_percent_total} (${(stat.last_percent_rate * 100).toFixed(2)}%)` : 'N/A'}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
 

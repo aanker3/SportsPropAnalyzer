@@ -108,3 +108,5 @@ class PlayerStatsCalculated(Base):
     l5_hit_rate = Column(Float)
     l10_hit_rate = Column(Float)
     l20_hit_rate = Column(Float)
+    last_percent_total = Column(String)      # Formatted string, e.g., "24/25"
+    last_percent_rate = Column(Float)        # Percentage as a decimal, e.g., 0.96
