@@ -26,6 +26,7 @@ STAT_MAPPING = {
     "Pts+Asts": ["pts", "ast"],
     "Pts+Rebs": ["pts", "reb"],
     "Blks+Stls": ["blk", "stl"],
+    "Fantasy Score": "fantasy_score",  # Special case for Fantasy Score
 }
 
 
@@ -35,6 +36,16 @@ def _calc_hit_rate(games, target, over_under, stat):
         return 0
 
     def get_stat_value(game):
+        # Handle Fantasy Score calculation
+        if stat == "fantasy_score":
+            return (
+                getattr(game, "pts", 0) * 1 +
+                getattr(game, "reb", 0) * 1.2 +
+                getattr(game, "ast", 0) * 1.5 +
+                getattr(game, "blk", 0) * 3 +
+                getattr(game, "stl", 0) * 3 +
+                getattr(game, "tov", 0) * -1
+            )
         # Handle single or combined stats
         if isinstance(stat, list):
             return sum(getattr(game, s, 0) for s in stat)
@@ -45,7 +56,6 @@ def _calc_hit_rate(games, target, over_under, stat):
         if (get_stat_value(game) >= target if over_under == 'over' else get_stat_value(game) < target)
     )
     return hits / len(games)
-
 
 def last_percent(hits: list[bool]) -> tuple[float, str]:
     # Initialize best values
@@ -127,6 +137,15 @@ def calculate_hit_rates(session: Session, prop_id: int):
 
     # Build hit list for last_percent
     def get_stat_value(game):
+        if stat == "fantasy_score":
+            return (
+                getattr(game, "pts", 0) * 1 +
+                getattr(game, "reb", 0) * 1.2 +
+                getattr(game, "ast", 0) * 1.5 +
+                getattr(game, "blk", 0) * 3 +
+                getattr(game, "stl", 0) * 3 +
+                getattr(game, "tov", 0) * -1
+            )
         if isinstance(stat, list):
             return sum(getattr(game, s, 0) for s in stat)
         return getattr(game, stat, 0)
