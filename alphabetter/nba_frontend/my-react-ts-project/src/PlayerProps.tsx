@@ -22,7 +22,8 @@ function PlayerProps() {
   const [chartData, setChartData] = useState(null); // Chart data for the modal
   const [chartOptions, setChartOptions] = useState(null); // Chart options for the modal
   const [error, setError] = useState(null);
-  const [selectedSort, setSelectedSort] = useState('l10_hit_rate'); // Default sorting criteria
+  const [selectedSort, setSelectedSort] = useState('l10_hit_rate'); // Default sorting criteria  
+  const [sliderValue, setSliderValue] = useState(10); // Default slider value (number of games)
 
   // Fetch props and stats
   useEffect(() => {
@@ -54,7 +55,7 @@ function PlayerProps() {
   const handleRowClick = async (prop) => {
     setSelectedProp(prop); // Set the selected prop to display in the modal
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/last_x/${prop.id}/10`);
+      const response = await fetch(`http://127.0.0.1:8000/api/last_x/${prop.id}/${sliderValue}`);
       if (!response.ok) {
         throw new Error(`Error: ${response.statusText}`);
       }
@@ -123,6 +124,7 @@ function PlayerProps() {
     }
   };
 
+
   // Sorting function
   const sortProps = (criteria) => {
     const sortedProps = [...props].sort((a, b) => {
@@ -132,12 +134,54 @@ function PlayerProps() {
     });
     setProps(sortedProps); // Update the props state with the sorted data
   };
+  
+    // Handle sorting criteria change
+    const handleSortChange = (event) => {
+      const criteria = event.target.value;
+      setSelectedSort(criteria); // Update the selected sorting criteria
+      sortProps(criteria); // Sort the props based on the new criteria
+    };
 
-  // Handle sorting criteria change
-  const handleSortChange = (event) => {
-    const criteria = event.target.value;
-    setSelectedSort(criteria); // Update the selected sorting criteria
-    sortProps(criteria); // Sort the props based on the new criteria
+  const handleSliderChange = async (event) => {
+    const newValue = event.target.value;
+    setSliderValue(newValue); // Update slider value
+
+    // Fetch updated data based on the new slider value
+    if (selectedProp) {
+      try {
+        const response = await fetch(`http://127.0.0.1:8000/api/last_x/${selectedProp.id}/${newValue}`);
+        if (!response.ok) {
+          throw new Error(`Error: ${response.statusText}`);
+        }
+        const result = await response.json();
+
+        // Update chart data
+        const labels = result.game_logs.map((log) => `${log.game_date}\n${log.matchup}`);
+        const statValues = result.game_logs.map((log) => log.stat_value);
+        const target = result.prop.target;
+
+        const barColors = statValues.map((value) => {
+          if (value > target) return 'rgba(75, 192, 75, 0.8)';
+          if (value < target) return 'rgba(255, 99, 132, 0.8)';
+          return 'rgba(128, 128, 128, 0.8)';
+        });
+
+        setChartData({
+          labels,
+          datasets: [
+            {
+              label: `${result.prop.stat} (Actual)`,
+              data: statValues,
+              backgroundColor: barColors,
+              borderColor: barColors.map((color) => color.replace('0.8', '1')),
+              borderWidth: 1,
+            },
+          ],
+        });
+      } catch (err) {
+        setError(err.message);
+      }
+    }
   };
 
   return (
@@ -209,16 +253,40 @@ function PlayerProps() {
             padding: '20px',
             boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)',
             zIndex: 1000,
-            width: '80%',
-            maxHeight: '80%',
-            overflowY: 'auto',
+            width: '80vw', // Use viewport width
+            height: '80vh', // Use viewport height
+            maxWidth: '800px', // Optional: Limit max width
+            maxHeight: '600px', // Optional: Limit max height
+            overflow: 'hidden', // Prevent scrollbars
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
           }}
         >
-          <h2>{selectedProp.player_name} - {selectedProp.stat}</h2>
+          <h2 style={{ textAlign: 'center' }}>{selectedProp.player_name} - {selectedProp.stat}</h2>
           {error && <p style={{ color: 'red' }}>{error}</p>}
           {chartData && chartOptions && (
-            <Bar data={chartData} options={chartOptions} />
+            <div style={{ flex: 1, width: '100%', height: '100%' }}>
+              <Bar
+                data={chartData}
+                options={{
+                  ...chartOptions,
+                  responsive: true, // Make the chart responsive
+                  maintainAspectRatio: false, // Allow the chart to fill the container
+                }}
+              />
+            </div>
           )}
+          <label htmlFor="game-slider" style={{ marginTop: '10px' }}>Number of Games: {sliderValue}</label>
+          <input
+            id="game-slider"
+            type="range"
+            min="5"
+            max="30"  //TODO: Figure out Exact NUM GAMES
+            value={sliderValue}
+            onChange={handleSliderChange}
+            style={{ width: '100%' }}
+          />
           <button onClick={() => setSelectedProp(null)} style={{ marginTop: '20px' }}>
             Close
           </button>
