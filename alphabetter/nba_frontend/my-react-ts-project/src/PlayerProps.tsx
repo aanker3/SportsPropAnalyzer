@@ -22,6 +22,7 @@ function PlayerProps() {
   const [chartData, setChartData] = useState(null); // Chart data for the modal
   const [chartOptions, setChartOptions] = useState(null); // Chart options for the modal
   const [error, setError] = useState(null);
+  const [selectedSort, setSelectedSort] = useState('l10_hit_rate'); // Default sorting criteria
 
   // Fetch props and stats
   useEffect(() => {
@@ -122,9 +123,40 @@ function PlayerProps() {
     }
   };
 
+  // Sorting function
+  const sortProps = (criteria) => {
+    const sortedProps = [...props].sort((a, b) => {
+      const statA = stats[a.id]?.[criteria] || 0;
+      const statB = stats[b.id]?.[criteria] || 0;
+      return statB - statA; // Sort descending by the selected criteria
+    });
+    setProps(sortedProps); // Update the props state with the sorted data
+  };
+
+  // Handle sorting criteria change
+  const handleSortChange = (event) => {
+    const criteria = event.target.value;
+    setSelectedSort(criteria); // Update the selected sorting criteria
+    sortProps(criteria); // Sort the props based on the new criteria
+  };
+
   return (
     <div>
       <h1>PrizePicks Props</h1>
+
+      {/* Sorting Dropdown */}
+      <label htmlFor="sort-select" style={{ marginRight: '10px' }}>Sort By:</label>
+      <select
+        id="sort-select"
+        value={selectedSort}
+        onChange={handleSortChange}
+        style={{ marginBottom: '10px', padding: '5px' }}
+      >
+        <option value="l5_hit_rate">L5 Hit Rate</option>
+        <option value="l10_hit_rate">L10 Hit Rate</option>
+        <option value="l20_hit_rate">L20 Hit Rate</option>
+      </select>
+
       <table border="1">
         <thead>
           <tr>
@@ -155,9 +187,9 @@ function PlayerProps() {
                 <td>{prop.target}</td>
                 <td>{prop.over_under}</td>
                 <td>{prop.odds_type}</td>
-                <td>{stat.l5_hit_rate != null ? Number(stat.l5_hit_rate.toPrecision(2)) : 'N/A'}</td>
-                <td>{stat.l10_hit_rate != null ? Number(stat.l10_hit_rate.toPrecision(2)) : 'N/A'}</td>
-                <td>{stat.l20_hit_rate != null ? Number(stat.l20_hit_rate.toPrecision(2)) : 'N/A'}</td>
+                <td>{stat.l5_hit_rate != null ? `${(stat.l5_hit_rate * 100).toFixed(1)}%` : 'N/A'}</td>
+                <td>{stat.l10_hit_rate != null ? `${(stat.l10_hit_rate * 100).toFixed(1)}%` : 'N/A'}</td>
+                <td>{stat.l20_hit_rate != null ? `${(stat.l20_hit_rate * 100).toFixed(1)}%` : 'N/A'}</td>
                 <td>{stat.last_percent_total ? `${stat.last_percent_total} (${(stat.last_percent_rate * 100).toFixed(2)}%)` : 'N/A'}</td>
               </tr>
             );
