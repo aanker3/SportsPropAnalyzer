@@ -219,14 +219,21 @@ def main():
     session = SessionLocal()
 
     if args.prop_id is not None:
-        # Run for one specific prop_id (only last_percent will be used from results)
+        # Run for one specific prop_id
         prop_id = args.prop_id
         stats = calculate_hit_rates(session, prop_id)
         if stats:
-            print(f"""🎯 last_percent for prop_id {prop_id}:
-    Last %: {stats['last_percent_total']} ({round(stats['last_percent_rate'] * 100, 1)}%)""")
+            print(f"""🎯 Stats for prop_id {prop_id}:
+        Player ID: {stats['player_id']}
+        Name: {stats['player_name']}
+        Prop ID: {stats['prop_id']}
+        L5: {stats['l5_hit_rate']}
+        L10: {stats['l10_hit_rate']}
+        L20: {stats['l20_hit_rate']}
+        Last %: {stats['last_percent_total']} ({stats['last_percent_rate']})
+        """)
         else:
-            print("❌ Failed to calculate last% for given prop")
+            print("❌ Failed to calculate stats for the given prop_id")
     else:
         # Batch mode — full stats including last% stored in DB
         props = session.query(PrizePicksProp).all()

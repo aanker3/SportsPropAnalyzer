@@ -155,9 +155,9 @@ function PlayerProps() {
                 <td>{prop.target}</td>
                 <td>{prop.over_under}</td>
                 <td>{prop.odds_type}</td>
-                <td>{stat.l5_hit_rate ? `${(stat.l5_hit_rate * 100).toFixed(1)}%` : 'N/A'}</td>
-                <td>{stat.l10_hit_rate ? `${(stat.l10_hit_rate * 100).toFixed(1)}%` : 'N/A'}</td>
-                <td>{stat.l20_hit_rate ? `${(stat.l20_hit_rate * 100).toFixed(1)}%` : 'N/A'}</td>
+                <td>{stat.l5_hit_rate != null ? Number(stat.l5_hit_rate.toPrecision(2)) : 'N/A'}</td>
+                <td>{stat.l10_hit_rate != null ? Number(stat.l10_hit_rate.toPrecision(2)) : 'N/A'}</td>
+                <td>{stat.l20_hit_rate != null ? Number(stat.l20_hit_rate.toPrecision(2)) : 'N/A'}</td>
                 <td>{stat.last_percent_total ? `${stat.last_percent_total} (${(stat.last_percent_rate * 100).toFixed(2)}%)` : 'N/A'}</td>
               </tr>
             );
