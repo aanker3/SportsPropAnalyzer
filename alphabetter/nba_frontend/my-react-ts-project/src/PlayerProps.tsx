@@ -15,6 +15,7 @@ import annotationPlugin from 'chartjs-plugin-annotation';
 // Register Chart.js components and the annotation plugin
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, annotationPlugin);
 
+//useState dynamically updates and renders.
 function PlayerProps() {
   const [props, setProps] = useState([]); // Props data
   const [stats, setStats] = useState({}); // Stats data mapped by prop_id
@@ -26,6 +27,7 @@ function PlayerProps() {
   const [sliderValue, setSliderValue] = useState(10); // Default slider value (number of games)
 
   // Fetch props and stats
+  // useEffect Run this once when the component loads.
   useEffect(() => {
     // Fetch props
     axios
@@ -77,7 +79,7 @@ function PlayerProps() {
         labels,
         datasets: [
           {
-            label: `${result.prop.stat} (Actual)`,
+            label: `${result.prop.stat}`,
             data: statValues,
             backgroundColor: barColors,
             borderColor: barColors.map((color) => color.replace('0.8', '1')),
@@ -90,7 +92,7 @@ function PlayerProps() {
         responsive: true,
         plugins: {
           legend: { display: false },
-          title: { display: true, text: `${result.prop.stat} vs Target` },
+          // title: { display: true, text: `${result.prop.stat} vs Target` },
           annotation: {
             annotations: {
               targetLine: {
@@ -170,7 +172,7 @@ function PlayerProps() {
           labels,
           datasets: [
             {
-              label: `${result.prop.stat} (Actual)`,
+              label: `${result.prop.stat}`,
               data: statValues,
               backgroundColor: barColors,
               borderColor: barColors.map((color) => color.replace('0.8', '1')),

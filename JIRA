@@ -7,10 +7,18 @@
 1a. --What should it show when clicked?--
 2a. --Add ability to display other other graphs in the modal. (props.cash uses H2H, 24/25, L5, L10, L20) I want to provide L# and best #.
 
-Story 2: Make a player page
+Story 2: Make a player page ??
 
 Story 3: Figure out the stats i need.
 
 -----Story 5: Figure out Last%----
 
-Story 6: Order props. based on what the user wants. Options are In order, by player, by last5,10,%,streak...
+------Story 6: Order props. based on what the user wants. Options are In order, by player, by last5,10,%,
+
+---
+
+Story 7: Get matchup for props
+
+Story 8: Need to figure out how to get news / see injuries / see how players perform with injuries.
+
+Story 9: See Defensive matchups. Ex: Pacers give up the most 3s in the league. Or Pacers give up the most points to centers.
