@@ -26,11 +26,11 @@ async def get_player_gamelogs(player_name: str, db: Session = Depends(get_db)):
         return {"message": f"Player '{player_name}' not found."}
     return {"game_logs": game_logs}
 
-from alphabetter.nba_backend.database import engine, Base  # Use relative import
-@app.get("/init-db")
-def init_db():
-    Base.metadata.create_all(bind=engine)
-    return {"msg": "DB initialized"}
+from alphabetter.nba_backend.fetch_and_calculate_all import fetch_and_calculate_and_store
+@app.get("/fetch_and_calculate_all")
+def fetch_and_calculate_all():
+    fetch_and_calculate_and_store()
+    return {"status": "success"}
 
 
 @app.get("/api/props")
