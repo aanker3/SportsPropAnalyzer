@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from alphabetter.nba_backend.database import get_db
 from alphabetter.nba_backend.models import PlayerGameLog, PrizePicksProp, PlayerStatsCalculated
-from alphabetter.nba_backend.stat_collector.lastx import calculate_hit_rates, store_calculated_stats
+from alphabetter.nba_backend.stat_collector.calculate_and_store_lastx import calculate_hit_rates, store_calculated_stats
 from alphabetter.nba_backend.player_utils import get_player_id
 from alphabetter.nba_backend.crud.player_gamelogs import fetch_player_gamelogs
 

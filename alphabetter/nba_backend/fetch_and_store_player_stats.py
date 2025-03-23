@@ -210,7 +210,7 @@ def store_team_gamelog(db: Session, team_id: int, team_logs: list):
         db.add(new_team_info)
     db.commit()
 
-def main():
+def fetch_and_store_player_stats():
     db: Session = next(get_db())
 
     # Fetch all current players
@@ -231,12 +231,12 @@ def main():
                 player_name, team, team_id, game_logs = fetch_player_stats(player_id)
                 store_player_stats(db, player_id, player_name, team, team_id, game_logs)
                 print(f"Stored stats for player ID: {player_id}")
-                time.sleep(.5)  # To avoid hitting API rate limits
+                time.sleep(1)  # To avoid hitting API rate limits
                 break
             except Exception as e:
                 retries -= 1
-                print(f"Error fetching/storing stats for player ID: {player_id} - {e}. Retrying in 5 minutes... ({5 - retries}/5)")
-                time.sleep(5*60)  # Wait for 2 minutes before retrying
+                print(f"Error fetching/storing stats for player ID: {player_id} - {e}. Retrying in 8 minutes... ({8 - retries}/5)")
+                time.sleep(8*60)  # Wait for 2 minutes before retrying
         if retries == 0:
             print(f"Failed to fetch/store stats for player ID: {player_id} after multiple attempts.")
 
@@ -269,4 +269,4 @@ def main():
     db.close()
 
 if __name__ == "__main__":
-    main()
+    fetch_and_store_player_stats()

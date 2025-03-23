@@ -16,11 +16,12 @@ def store_prize_picks_props(db: Session, props: list):
     for prop in props:
 
         #Skip fantasy score for now.  unsupported.
-        if prop.stat == "Fantasy Score":
+        if prop.stat == "Fantasy Score" or prop.stat == "Dunks":  # Skip unsupported stats
             print(f"Skipping prop for {prop.player_name} with stat 'Fantasy Score'")
             continue
-
+        
         prop_player_id = get_player_id(prop.player_name) 
+
         new_prop = PrizePicksProp(
             player_name=prop.player_name,
             player_id=prop_player_id,
