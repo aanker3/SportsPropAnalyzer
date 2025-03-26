@@ -7,7 +7,7 @@ from alphabetter.nba_backend.models import PlayerGameLog, PrizePicksProp, Player
 from alphabetter.nba_backend.stat_collector.calculate_and_store_lastx import calculate_hit_rates, store_calculated_stats
 from alphabetter.nba_backend.player_utils import get_player_id
 from alphabetter.nba_backend.crud.player_gamelogs import fetch_player_gamelogs
-
+from alphabetter.nba_backend.fetch_and_calculate_all import fetch_and_calculate_and_store
 
 app = FastAPI()
 
@@ -26,8 +26,7 @@ async def get_player_gamelogs(player_name: str, db: Session = Depends(get_db)):
         return {"message": f"Player '{player_name}' not found."}
     return {"game_logs": game_logs}
 
-from alphabetter.nba_backend.fetch_and_calculate_all import fetch_and_calculate_and_store
-@app.get("/fetch_and_calculate_all")
+@app.post("/fetch_and_calculate_all")
 def fetch_and_calculate_all():
     fetch_and_calculate_and_store()
     return {"status": "success"}

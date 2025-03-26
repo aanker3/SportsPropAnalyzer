@@ -228,6 +228,82 @@ def format_game(game):
         # Add other relevant attributes here
     }
 
+def calculate_and_store_stats_bulk(session: Session, props: list):
+    """Batch calculate and store stats for a list of props."""    
+    print("Start calculating stats (bulk).  Will take a moment...")
+    # Preload all player game logs
+    player_ids = {prop.player_id for prop in props}
+    player_game_logs = session.query(PlayerGameLog).filter(
+        PlayerGameLog.player_id.in_(player_ids)
+    ).order_by(PlayerGameLog.game_date.desc()).all()
+
+    # Preload existing PlayerStatsCalculated records
+    prop_ids = [prop.id for prop in props]
+    existing_stats = {
+        record.prop_id: record
+        for record in session.query(PlayerStatsCalculated).filter(
+            PlayerStatsCalculated.prop_id.in_(prop_ids)
+        ).all()
+    }
+
+    stats_list = []
+    for prop in props:
+        # Filter game logs for the current player
+        player_logs = [log for log in player_game_logs if log.player_id == prop.player_id]
+
+        # Perform calculations
+        l5_hit_rate = _calc_hit_rate(player_logs[:5], prop.target, prop.over_under, STAT_MAPPING.get(prop.stat, "pts"))
+        l10_hit_rate = _calc_hit_rate(player_logs[:10], prop.target, prop.over_under, STAT_MAPPING.get(prop.stat, "pts"))
+        l20_hit_rate = _calc_hit_rate(player_logs[:20], prop.target, prop.over_under, STAT_MAPPING.get(prop.stat, "pts"))
+
+        # Build hit list for last_percent
+        hits = [
+            (log.pts >= prop.target if prop.over_under == 'over' else log.pts < prop.target)
+            for log in player_logs
+            if log.min and log.min > 0
+        ]
+        last_percent_rate, last_percent_total = last_percent(hits)
+
+        stats = {
+            "player_id": prop.player_id,
+            "player_name": prop.player_name,
+            "prop_id": prop.id,
+            "l5_hit_rate": l5_hit_rate,
+            "l10_hit_rate": l10_hit_rate,
+            "l20_hit_rate": l20_hit_rate,
+            "last_percent_total": last_percent_total,
+            "last_percent_rate": last_percent_rate / 100,  # store as 0.882 not 88.2
+        }
+        stats_list.append(stats)
+
+    # Batch insert or update stats
+    for stats in stats_list:
+        if stats["prop_id"] in existing_stats:
+            # Update existing record
+            record = existing_stats[stats["prop_id"]]
+            record.l5_hit_rate = stats["l5_hit_rate"]
+            record.l10_hit_rate = stats["l10_hit_rate"]
+            record.l20_hit_rate = stats["l20_hit_rate"]
+            record.last_percent_total = stats["last_percent_total"]
+            record.last_percent_rate = stats["last_percent_rate"]
+        else:
+            # Add new record
+            player_stats_calculated = PlayerStatsCalculated(
+                player_id=stats["player_id"],
+                player_name=stats["player_name"],
+                prop_id=stats["prop_id"],
+                l5_hit_rate=stats["l5_hit_rate"],
+                l10_hit_rate=stats["l10_hit_rate"],
+                l20_hit_rate=stats["l20_hit_rate"],
+                last_percent_total=stats["last_percent_total"],
+                last_percent_rate=stats["last_percent_rate"]
+            )
+            session.add(player_stats_calculated)
+
+    # Commit all changes in one go
+    session.commit()
+    print(f"✅ Bulk stats committed to database.")
+
 def main():
     parser = argparse.ArgumentParser(description="Calculate hit rates for a given prop_id")
     parser.add_argument("prop_id", type=int, nargs="?", help="The ID of the prop to calculate hit rates for")

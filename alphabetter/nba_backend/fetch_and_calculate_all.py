@@ -16,9 +16,10 @@ from alphabetter.nba_backend.fetch_and_store_player_stats import (
 from alphabetter.nba_backend.stat_collector.calculate_and_store_lastx import (
     store_calculated_stats,
     calculate_hit_rates,
+    calculate_and_store_stats_bulk
 )
 from alphabetter.nba_backend.database import get_db
-from common.nba_api_common import get_player_id
+from alphabetter.nba_backend.common.nba_api_common import get_player_id
 
 
 # async_process_props.py
@@ -35,7 +36,7 @@ def delete_all_rows(session: Session):
     elapsed_time = time.time() - start_time
     print(f"✅ All rows deleted in {elapsed_time:.2f} seconds.")
 
-def main():
+def fetch_and_calculate_and_store():
     total_start_time = time.time()  # Start timing the entire process
 
     delete_all_rows(session=next(get_db()))
@@ -47,8 +48,13 @@ def main():
 
     db: Session = next(get_db())
     fetched_players = set()
+    new_props = []  # Collect new props to batch commit
 
-    for prop in props:
+    total_props = len(props)  # Get the total number of props
+
+    for index, prop in enumerate(props, start=1):  # Add a counter to the loop
+        print(f"Processing prop {index}/{total_props} for {prop.player_name}...")  # Display progress
+
         if prop.stat == "Fantasy Score" or prop.stat == "Dunks":  # Skip unsupported stats
             print(f"Skipping Fantasy Score for {prop.player_name}")
             continue
@@ -64,9 +70,6 @@ def main():
             print(f"Player ID not found for {prop.player_name}, skipping.")
             continue
 
-        # Time processing for each player
-        player_start_time = time.time()
-
         # Fetch & store player stats if not already done
         if player_id not in fetched_players:
             try:
@@ -79,7 +82,7 @@ def main():
                 print(f"❌ Failed to fetch/store stats for {prop.player_name}: {e}")
                 continue
 
-        # Store prop in DB
+        # Store prop in memory for batch commit
         new_prop = PrizePicksProp(
             player_name=prop.player_name,
             player_id=player_id,
@@ -88,29 +91,28 @@ def main():
             over_under=prop.over_under,
             odds_type=prop.odds_type.value,
         )
-        db.add(new_prop)
-        db.commit()
+        new_props.append(new_prop)
 
-        # Calculate and store lastX stats
-        session = db  # reuse
-        calculated_stats = calculate_hit_rates(session, new_prop.id)
-        if calculated_stats:
-            store_calculated_stats(session, calculated_stats)
-            print(f"✅ Calculated and stored stats for prop_id {new_prop.id}")
-        else:
-            print(f"❌ Failed stats calc for prop_id {new_prop.id}")
+    # Batch commit all new props
+    db.add_all(new_props)  # Add all props to the session
+    db.commit()
 
-        # Log time taken for this player
-        player_elapsed_time = time.time() - player_start_time
-        print(f"⏱️ Time taken for {prop.player_name}: {player_elapsed_time:.2f} seconds")
-        print(f"# of players fetched: {len(fetched_players)}")
-        print(f"# of props stored: {len(props)}")
+    # Refresh the props to get their IDs
+    for new_prop in new_props:
+        db.refresh(new_prop)  # Refresh to populate the `id` field
+
+    # Batch calculate and store stats
+    calculate_and_store_stats_bulk(db, new_props)
+
     db.close()
 
-    # Log total time taken
-    total_elapsed_time = time.time() - total_start_time
-    print(f"🎉 Total time taken for all players: {total_elapsed_time:.2f} seconds")
+    # Debug information
+    print(f"\n=== Debug Information ===")
+    print(f"🎉 Total time taken: {time.time() - total_start_time:.2f} seconds")
+    print(f"✅ Total props stored: {len(new_props)}")
+    print(f"✅ Total players fetched: {len(fetched_players)}")
+    print(f"=========================\n")
 
 
 if __name__ == "__main__":
-    main()
+    fetch_and_calculate_and_store()
