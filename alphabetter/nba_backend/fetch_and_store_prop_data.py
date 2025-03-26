@@ -3,13 +3,16 @@ import json
 from sqlalchemy.orm import Session
 from alphabetter.nba_backend.database import get_db
 from alphabetter.nba_backend.models import PrizePicksProp, OddsType
-from get_props.get_props import load_bets_json, create_props
-from common.nba_api_common import get_player_id
+from alphabetter.nba_backend.get_props.get_props import load_bets_json, create_props
+from alphabetter.nba_backend.common.nba_api_common import get_player_id
 
 # Function to call the executable and generate the JSON file
 def generate_prize_picks_json():
     # return
-    subprocess.run(["./get_props/gen_nba_prizepicks.exe"], check=True)
+    # subprocess.run(["./get_props/gen_nba_prizepicks.exe"], check=True)
+    #TODO: MUST FIX THIS
+    subprocess.run([r"C:\github\SportsPropAnalyzer\alphabetter\nba_backend\get_props\gen_nba_prizepicks.exe"], check=True)
+    
 
 # Function to store PrizePicks props in the database
 def store_prize_picks_props(db: Session, props: list):
