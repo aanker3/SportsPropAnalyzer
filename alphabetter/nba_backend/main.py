@@ -31,6 +31,10 @@ def fetch_and_calculate_all():
     fetch_and_calculate_and_store()
     return {"status": "success"}
 
+@app.get("/api/hello_world")
+async def hello_world():
+    print("HI WORLD")
+    return {"message": "Hello, world!"}
 
 @app.get("/api/props")
 async def get_props(db: Session = Depends(get_db)):
