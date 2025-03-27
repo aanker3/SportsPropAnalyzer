@@ -3,9 +3,10 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import List, Dict
 from alphabetter.nba_backend.models import OddsType
+from pathlib import Path
 
-FILE_PATH = "get_props/prizepicks_props.json"
-
+# FILE_PATH = r"C:\github\SportsPropAnalyzer\alphabetter\nba_backend\get_props\prizepicks_props.json"
+FILE_PATH = Path(__file__).parent / "prizepicks_props.json"
 
 @dataclass
 class Prop:
@@ -18,8 +19,20 @@ class Prop:
 
 def load_bets_json(filepath: str = FILE_PATH) -> dict:
     """Read and parse JSON data from the PrizePicks file."""
-    with open(filepath, "r", encoding='utf-8') as file:
-        return json.load(file)
+    # Check if the file exists
+    if not Path(filepath).exists():
+        raise FileNotFoundError(f"File not found: {filepath}")
+
+    print(f"Loading JSON data from: {filepath}")  # Debug: Print the file path
+
+    # Open and load the JSON file
+    with open(filepath, "r", encoding="utf-8") as file:
+        data = json.load(file)
+
+    # Debug: Print a summary of the loaded data
+    print(f"Loaded {len(data.get('data', []))} bets and {len(data.get('included', []))} players.")
+
+    return data
 
 
 def extract_players(bet_data: dict) -> Dict[str, dict]:

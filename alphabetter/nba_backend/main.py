@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
@@ -27,9 +27,11 @@ async def get_player_gamelogs(player_name: str, db: Session = Depends(get_db)):
     return {"game_logs": game_logs}
 
 @app.post("/api/fetch_and_calculate_all")
-def fetch_and_calculate_all():
-    fetch_and_calculate_and_store()
-    return {"status": "success"}
+def fetch_and_calculate_all(background_tasks: BackgroundTasks):
+    # Run the task in the background
+    background_tasks.add_task(fetch_and_calculate_and_store)
+    return {"status": "Task started in the background"}
+
 
 @app.get("/api/hello_world")
 async def hello_world():

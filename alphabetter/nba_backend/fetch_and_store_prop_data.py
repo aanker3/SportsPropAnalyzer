@@ -5,14 +5,27 @@ from alphabetter.nba_backend.database import get_db
 from alphabetter.nba_backend.models import PrizePicksProp, OddsType
 from alphabetter.nba_backend.get_props.get_props import load_bets_json, create_props
 from alphabetter.nba_backend.common.nba_api_common import get_player_id
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).parent
 
 # Function to call the executable and generate the JSON file
 def generate_prize_picks_json():
     # return
     # subprocess.run(["./get_props/gen_nba_prizepicks.exe"], check=True)
     #TODO: MUST FIX THIS
-    subprocess.run([r"C:\github\SportsPropAnalyzer\alphabetter\nba_backend\get_props\gen_nba_prizepicks.exe"], check=True)
-    
+    # subprocess.run([r"C:\github\SportsPropAnalyzer\alphabetter\nba_backend\get_props\gen_nba_prizepicks.exe"], check=True)
+    go_file_path = SCRIPT_DIR / "get_props" / "bets.go"
+
+    # Define the command to run the Go file
+    cmd = ["go", "run", str(go_file_path)]
+
+    # Print the command for debugging purposes
+    print(f"Running command: {' '.join(cmd)}")
+
+    # Run the command
+    subprocess.run(cmd, check=True)
+
 
 # Function to store PrizePicks props in the database
 def store_prize_picks_props(db: Session, props: list):
