@@ -1,33 +1,17 @@
-import subprocess
-import json
-import os
 from sqlalchemy.orm import Session
 from alphabetter.nba_backend.database import get_db
 from alphabetter.nba_backend.models import PrizePicksProp, OddsType
 from alphabetter.nba_backend.get_props.get_props import load_bets_json, create_props
 from alphabetter.nba_backend.common.nba_api_common import get_player_id
 from pathlib import Path
+from alphabetter.nba_backend.get_props.gen_prizepicks_json import gen_prizepicks_json
 
 SCRIPT_DIR = Path(__file__).parent
 
 # Function to call the executable and generate the JSON file
-def generate_prize_picks_json():
-    """Generate the PrizePicks JSON file by running the appropriate command based on the OS."""
-    if os.name == "nt":  # Windows
-        # On Windows, run the Go file
-        go_file_path = SCRIPT_DIR / "get_props" / "bets.go"
-        cmd = ["go", "run", str(go_file_path)]
-    else:  # Linux or other OS
-        # On Linux, run the compiled binary
-        binary_file_path = SCRIPT_DIR / "get_props" / "gen_nba_prizepicks"
-        os.chmod(binary_file_path, 0o755)
-        cmd = [str(binary_file_path)]
-
-    # Print the command for debugging purposes
-    print(f"Running command: {' '.join(cmd)}")
-
-    # Run the command
-    subprocess.run(cmd, check=True)
+def generate_prop_files():
+    """Generate the all prop JSON file by running the appropriate command based on the OS."""
+    gen_prizepicks_json()
 
 # Function to store PrizePicks props in the database
 def store_prize_picks_props(db: Session, props: list):
@@ -66,7 +50,7 @@ def store_prize_picks_props(db: Session, props: list):
 
 def fetch_and_store_prop_data():
     # Generate the JSON file
-    generate_prize_picks_json()
+    generate_prop_files()
 
     # Load the JSON data
     bet_data = load_bets_json()

@@ -4,10 +4,9 @@ from sqlalchemy import create_engine
 from alphabetter.nba_backend.database import DATABASE_URL, Base
 from alphabetter.nba_backend.models import PrizePicksProp, PlayerGameLog, PlayerStatsCalculated, PlayerStats
 from alphabetter.nba_backend.fetch_and_store_prop_data import (
-    generate_prize_picks_json,
     load_bets_json,
     create_props,
-    store_prize_picks_props,
+    generate_prop_files,
 )
 from alphabetter.nba_backend.fetch_and_store_player_stats import (
     fetch_player_stats,
@@ -119,7 +118,7 @@ def fetch_and_calculate_and_store():
  
      delete_all_rows(session=next(get_db()))
      # Load and create props
-     generate_prize_picks_json()
+     generate_prop_files()
  
      bet_data = load_bets_json()
      props = create_props(bet_data)
