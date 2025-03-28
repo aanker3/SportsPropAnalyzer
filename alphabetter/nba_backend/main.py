@@ -29,12 +29,13 @@ async def get_player_gamelogs(player_name: str, db: Session = Depends(get_db)):
 @app.post("/api/fetch_and_calculate_all_bg")
 def fetch_and_calculate_all(background_tasks: BackgroundTasks):
     # Run the task in the background
+    print("Called /api/fetch_and_calculate_all_bg")
     background_tasks.add_task(fetch_and_calculate_and_store)
     return {"status": "Task started in the background"}
 
 @app.post("/api/fetch_and_calculate_all")
 def fetch_and_calculate_all():
-    # Run the task in the background
+    print("Called /api/fetch_and_calculate_all")
     prop_num = fetch_and_calculate_and_store()
     return {"prop_num": prop_num}
 
