@@ -26,11 +26,11 @@ async def get_player_gamelogs(player_name: str, db: Session = Depends(get_db)):
         return {"message": f"Player '{player_name}' not found."}
     return {"game_logs": game_logs}
 
-# @app.post("/api/fetch_and_calculate_all")
-# def fetch_and_calculate_all(background_tasks: BackgroundTasks):
-#     # Run the task in the background
-#     background_tasks.add_task(fetch_and_calculate_and_store)
-#     return {"status": "Task started in the background"}
+@app.post("/api/fetch_and_calculate_all_bg")
+def fetch_and_calculate_all(background_tasks: BackgroundTasks):
+    # Run the task in the background
+    background_tasks.add_task(fetch_and_calculate_and_store)
+    return {"status": "Task started in the background"}
 
 @app.post("/api/fetch_and_calculate_all")
 def fetch_and_calculate_all():
