@@ -51,7 +51,7 @@ async def test_real_stats():
         "Origin": "https://www.nba.com",
     }
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers, timeout=120)
         response.raise_for_status()
         return {"status": "success", "content": response.json()}
     except requests.exceptions.RequestException as e:
