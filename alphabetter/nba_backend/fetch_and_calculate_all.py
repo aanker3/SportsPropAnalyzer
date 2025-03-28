@@ -127,7 +127,7 @@ def fetch_and_calculate_and_store():
      db: Session = next(get_db())
      fetched_players = set()
  
-     for prop in props[:50]:
+     for index, prop in enumerate(props,start=1):
          if prop.stat == "Fantasy Score" or prop.stat == "Dunks":  # Skip unsupported stats
              print(f"Skipping Fantasy Score for {prop.player_name}")
              continue
@@ -172,7 +172,7 @@ def fetch_and_calculate_and_store():
  
          # Calculate and store lastX stats
          session = db  # reuse
-         calculated_stats = calculate_hit_rates(session, new_prop.id)
+         calculated_stats = calculate_hit_rates(session, new_prop)
          if calculated_stats:
              store_calculated_stats(session, calculated_stats)
              print(f"✅ Calculated and stored stats for prop_id {new_prop.id}")
@@ -183,12 +183,14 @@ def fetch_and_calculate_and_store():
          player_elapsed_time = time.time() - player_start_time
          print(f"⏱️ Time taken for {prop.player_name}: {player_elapsed_time:.2f} seconds")
          print(f"# of players fetched: {len(fetched_players)}")
-         print(f"# of props stored: {len(props)}")
+         print(f"# of props stored: {index}/{len(props)}")
      db.close()
  
      # Log total time taken
      total_elapsed_time = time.time() - total_start_time
      print(f"🎉 Total time taken for all players: {total_elapsed_time:.2f} seconds")
+
+     return len(props)
 
 
 if __name__ == "__main__":

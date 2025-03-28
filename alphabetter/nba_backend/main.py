@@ -26,6 +26,12 @@ async def get_player_gamelogs(player_name: str, db: Session = Depends(get_db)):
         return {"message": f"Player '{player_name}' not found."}
     return {"game_logs": game_logs}
 
+# @app.post("/api/fetch_and_calculate_all")
+# def fetch_and_calculate_all(background_tasks: BackgroundTasks):
+#     # Run the task in the background
+#     background_tasks.add_task(fetch_and_calculate_and_store)
+#     return {"status": "Task started in the background"}
+
 @app.post("/api/fetch_and_calculate_all")
 def fetch_and_calculate_all(background_tasks: BackgroundTasks):
     # Run the task in the background
@@ -47,15 +53,6 @@ async def get_props(db: Session = Depends(get_db)):
 async def get_player_stats_calculated(db: Session = Depends(get_db)):
     stats = db.query(PlayerStatsCalculated).all()
     return {"stats": stats}
-
-@app.post("/api/calculate-stats/{prop_id}")
-async def calculate_stats(prop_id: int, db: Session = Depends(get_db)):
-    stats = calculate_hit_rates(db, prop_id)
-    if stats:
-        store_calculated_stats(db, stats)
-        return {"message": "Stats calculated and stored successfully"}
-    else:
-        return {"message": "No games found for the player"}
 
 @app.get("/api/player/{player_name}")
 async def get_player_id_endpoint(player_name: str, db: Session = Depends(get_db)):

@@ -37,7 +37,7 @@ def _calc_hit_rate(games, target, over_under, stat):
 
     def get_stat_value(game):
         # Handle Fantasy Score calculation
-        if stat == "fantasy_score":
+        if (stat == "fantasy_score"):
             return (
                 getattr(game, "pts", 0) * 1 +
                 getattr(game, "reb", 0) * 1.2 +
@@ -90,30 +90,8 @@ def last_percent(hits: list[bool]) -> tuple[float, str]:
     # Return the best percentage and its fraction string
     return round(max_percent * 100, 2), f"{best_hit_count}/{best_total}"
 
-
-def calculate_best_streak_until_last_miss(games, target, over_under):
-    """
-    Calculate the longest consecutive hit streak until the first miss.
-    - The streak resets at the first miss.
-    - Counts from the most recent game backward.
-    """
-    current_streak = 0
-
-    for game in games:
-        hit = game.pts >= target if over_under == 'over' else game.pts < target
-        if hit:
-            current_streak += 1
-        else:
-            break  # Stop at the first miss
-
-    return current_streak
-
-def calculate_hit_rates(session: Session, prop_id: int):
-    prop = session.query(PrizePicksProp).filter(PrizePicksProp.id == prop_id).first()
-    if not prop:
-        print(f"No prop found for prop_id: {prop_id}")
-        return None
-
+def calculate_hit_rates(session: Session, prop: PrizePicksProp):
+    """Calculate hit rates for a given PrizePicksProp object."""
     player_id = prop.player_id
     player_name = prop.player_name
     target = prop.target
@@ -161,14 +139,13 @@ def calculate_hit_rates(session: Session, prop_id: int):
     return {
         "player_id": player_id,
         "player_name": player_name,
-        "prop_id": prop_id,
+        "prop_id": prop.id,
         "l5_hit_rate": l5_hit_rate,
         "l10_hit_rate": l10_hit_rate,
         "l20_hit_rate": l20_hit_rate,
         "last_percent_total": last_percent_total,
         "last_percent_rate": last_percent_rate / 100,  # store as 0.882 not 88.2
     }
-
 
 def store_calculated_stats(session: Session, stats: dict):
     # Check if a record for the given prop_id already exists
@@ -218,15 +195,6 @@ def store_calculated_stats(session: Session, stats: dict):
     # Commit the changes to the database
     session.commit()
     print("✅ Stats committed to database.")
-
-def format_game(game):
-    return {
-        "game_date": game.game_date,
-        "pts": game.pts,
-        "reb": game.reb,
-        "ast": game.ast,
-        # Add other relevant attributes here
-    }
 
 def calculate_and_store_stats_bulk(session: Session, props: list):
     """Batch calculate and store stats for a list of props."""    
