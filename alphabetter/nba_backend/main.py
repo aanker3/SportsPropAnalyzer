@@ -57,6 +57,27 @@ async def test_real_stats():
     except requests.exceptions.RequestException as e:
         return {"status": "error", "error": str(e)}
 
+import pandas as pd
+
+@app.get("/api/test_real_stats_bbref")
+async def test_real_stats_bbref():
+    try:
+        url = "https://www.basketball-reference.com/players/g/garlada01/gamelog/2024"
+        tables = pd.read_html(url)
+        gamelog = tables[0].astype(object)  # Cast to avoid numpy float issues
+        gamelog = gamelog.replace({float('inf'): None, float('-inf'): None})
+        gamelog = gamelog.where(pd.notnull(gamelog), None)
+        return {
+            "status": "success",
+            "games": gamelog.head(5).to_dict(orient="records")
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
 @app.get("/api/ping_stats_nba")
 async def ping_stats_nba():
     """Ping stats.nba.com and return the result."""
