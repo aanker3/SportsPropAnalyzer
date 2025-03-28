@@ -40,6 +40,23 @@ def fetch_and_calculate_all():
     prop_num = fetch_and_calculate_and_store()
     return {"prop_num": prop_num}
 
+@app.get("/api/test_real_stats")
+async def test_real_stats():
+    url = "https://stats.nba.com/stats/playergamelog?PlayerID=1631105&Season=2023-24&SeasonType=Regular+Season"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "Referer": "https://www.nba.com/",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Origin": "https://www.nba.com",
+    }
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        return {"status": "success", "content": response.json()}
+    except requests.exceptions.RequestException as e:
+        return {"status": "error", "error": str(e)}
+
 @app.get("/api/ping_stats_nba")
 async def ping_stats_nba():
     """Ping stats.nba.com and return the result."""
