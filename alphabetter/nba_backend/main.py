@@ -39,10 +39,9 @@ def fetch_and_calculate_all(background_tasks: BackgroundTasks):
     return {"status": "Task started in the background"}
 
 
-@app.get("/api/hello_world")
-async def hello_world():
-    print("HI WORLD")
-    return {"message": "Hello, world!"}
+@app.get("/")
+def read_root():
+    return {"status": "ok"}
 
 @app.get("/api/props")
 async def get_props(db: Session = Depends(get_db)):

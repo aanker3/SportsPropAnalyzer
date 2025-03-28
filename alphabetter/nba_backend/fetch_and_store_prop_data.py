@@ -20,6 +20,7 @@ def generate_prize_picks_json():
     else:  # Linux or other OS
         # On Linux, run the compiled binary
         binary_file_path = SCRIPT_DIR / "get_props" / "gen_nba_prizepicks"
+        os.chmod(binary_file_path, 0o755)
         cmd = [str(binary_file_path)]
 
     # Print the command for debugging purposes
