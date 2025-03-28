@@ -1,5 +1,6 @@
 import subprocess
 import json
+import os
 from sqlalchemy.orm import Session
 from alphabetter.nba_backend.database import get_db
 from alphabetter.nba_backend.models import PrizePicksProp, OddsType
@@ -11,21 +12,21 @@ SCRIPT_DIR = Path(__file__).parent
 
 # Function to call the executable and generate the JSON file
 def generate_prize_picks_json():
-    # return
-    # subprocess.run(["./get_props/gen_nba_prizepicks.exe"], check=True)
-    #TODO: MUST FIX THIS
-    # subprocess.run([r"C:\github\SportsPropAnalyzer\alphabetter\nba_backend\get_props\gen_nba_prizepicks.exe"], check=True)
-    go_file_path = SCRIPT_DIR / "get_props" / "bets.go"
-
-    # Define the command to run the Go file
-    cmd = ["go", "run", str(go_file_path)]
+    """Generate the PrizePicks JSON file by running the appropriate command based on the OS."""
+    if os.name == "nt":  # Windows
+        # On Windows, run the Go file
+        go_file_path = SCRIPT_DIR / "get_props" / "bets.go"
+        cmd = ["go", "run", str(go_file_path)]
+    else:  # Linux or other OS
+        # On Linux, run the compiled binary
+        binary_file_path = SCRIPT_DIR / "get_props" / "gen_nba_prizepicks"
+        cmd = [str(binary_file_path)]
 
     # Print the command for debugging purposes
     print(f"Running command: {' '.join(cmd)}")
 
     # Run the command
     subprocess.run(cmd, check=True)
-
 
 # Function to store PrizePicks props in the database
 def store_prize_picks_props(db: Session, props: list):
@@ -62,7 +63,7 @@ def store_prize_picks_props(db: Session, props: list):
 
     db.commit()
 
-def main():
+def fetch_and_store_prop_data():
     # Generate the JSON file
     generate_prize_picks_json()
 
@@ -79,5 +80,7 @@ def main():
 
     print("Stored PrizePicks props successfully!")
 
+    return props
+
 if __name__ == "__main__":
-    main()
+    fetch_and_store_prop_data()
