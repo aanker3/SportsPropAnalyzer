@@ -8,6 +8,7 @@ from alphabetter.nba_backend.stat_collector.calculate_and_store_lastx import cal
 from alphabetter.nba_backend.player_utils import get_player_id
 from alphabetter.nba_backend.crud.player_gamelogs import fetch_player_gamelogs
 from alphabetter.nba_backend.fetch_and_calculate_all import fetch_and_calculate_and_store
+import requests
 
 app = FastAPI()
 
@@ -39,6 +40,24 @@ def fetch_and_calculate_all():
     prop_num = fetch_and_calculate_and_store()
     return {"prop_num": prop_num}
 
+@app.get("/api/ping_stats_nba")
+async def ping_stats_nba():
+    """Ping stats.nba.com and return the result."""
+    url = "https://stats.nba.com"
+    try:
+        response = requests.get(url, timeout=10)  # Set a timeout of 10 seconds
+        response.raise_for_status()  # Raise an exception for HTTP errors
+        return {
+            "status": "success",
+            "status_code": response.status_code,
+            "headers": dict(response.headers),
+            "content": response.text[:500],  # Return the first 500 characters of the response
+        }
+    except requests.exceptions.RequestException as e:
+        return {
+            "status": "error",
+            "error": str(e),
+        }
 
 @app.get("/")
 def read_root():
