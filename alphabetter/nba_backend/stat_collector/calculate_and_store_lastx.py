@@ -1,0 +1,304 @@
+from sqlalchemy.orm import Session
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from alphabetter.nba_backend.database import DATABASE_URL, Base
+from alphabetter.nba_backend.models import PlayerGameLog, PlayerStatsCalculated, PrizePicksProp
+import argparse
+
+STAT_MAPPING = {
+    "Points": "pts",
+    "Rebounds": "reb",
+    "Offensive Rebounds": "oreb",
+    "Defensive Rebounds": "dreb",
+    "Assists": "ast",
+    "Steals": "stl",
+    "Blocks": "blk",
+    "Blocked Shots": "blk",
+    "Turnovers": "tov",
+    "3-PT Made": "fg3m",
+    "Free Throws Made": "ftm",
+    "FG Made": "fgm",
+    "FG Attempted": "fga",
+    "3-PT Attempted": "fg3a",
+    # Combined stats
+    "Rebs+Asts": ["reb", "ast"],
+    "Pts+Rebs+Asts": ["pts", "reb", "ast"],
+    "Pts+Asts": ["pts", "ast"],
+    "Pts+Rebs": ["pts", "reb"],
+    "Blks+Stls": ["blk", "stl"],
+    "Fantasy Score": "fantasy_score",  # Special case for Fantasy Score
+}
+
+
+def _get_stat_value(game, stat):
+    """Extract the relevant stat value from a game log row."""
+    if stat == "fantasy_score":
+        return (
+            getattr(game, "pts", 0) * 1 +
+            getattr(game, "reb", 0) * 1.2 +
+            getattr(game, "ast", 0) * 1.5 +
+            getattr(game, "blk", 0) * 3 +
+            getattr(game, "stl", 0) * 3 +
+            getattr(game, "tov", 0) * -1
+        )
+    if isinstance(stat, list):
+        return sum(getattr(game, s, 0) for s in stat)
+    return getattr(game, stat, 0)
+
+
+def _is_hit(stat_value, target, over_under):
+    if over_under == 'over':
+        return stat_value >= target
+    return stat_value <= target  # under: exact match is also a hit (push)
+
+
+def _calc_hit_rate(games, target, over_under, stat):
+    """Calculate hit rate for given games list and specified stat. Excludes DNP rows."""
+    active_games = [g for g in games if g.min and g.min > 0]
+    if not active_games:
+        return 0
+    hits = sum(1 for g in active_games if _is_hit(_get_stat_value(g, stat), target, over_under))
+    return hits / len(active_games)
+
+def last_percent(hits: list[bool]) -> tuple[float, str]:
+    # Initialize best values
+    max_percent = 0.0
+    best_hit_count = 0
+    best_total = 0
+    start = 0  # window always starts at index 0
+
+    # Expand the window one element at a time
+    for end in range(start, len(hits)):
+        window = hits[start:end + 1]
+        total = end - start + 1
+        hit_count = sum(window)
+        percent = hit_count / total
+
+        if total == 1:
+            continue  # Don't allow 1/1
+
+        # Handle 100% hit rate exceptions
+        is_hundred = percent == 1.0
+        if is_hundred and total <= 5:
+            # Skip unless followed by 2 losses
+            if not (len(hits) > end + 2 and not hits[end + 1] and not hits[end + 2]):
+                continue  # skip this perfect short window
+
+        # Update max if current window is better
+        if percent >= max_percent:
+            max_percent = percent
+            best_hit_count = hit_count
+            best_total = total
+
+    # Return the best percentage and its fraction string
+    return round(max_percent * 100, 2), f"{best_hit_count}/{best_total}"
+
+def calculate_hit_rates(session: Session, prop: PrizePicksProp):
+    """Calculate hit rates for a given PrizePicksProp object."""
+    player_id = prop.player_id
+    player_name = prop.player_name
+    target = prop.target
+    over_under = prop.over_under
+    odds_type = prop.odds_type
+    stat = STAT_MAPPING.get(prop.stat, "pts")
+
+    print(f"Calculating hit rates for {player_name} on {prop.stat} with odds_type: {odds_type}")
+
+    player_games = session.query(PlayerGameLog).filter(
+        PlayerGameLog.player_id == player_id
+    ).order_by(PlayerGameLog.game_date.desc()).all()
+
+    if not player_games:
+        print("No games found for the player")
+        return None
+
+    l5_hit_rate = _calc_hit_rate(player_games[:5], target, over_under, stat)
+    l10_hit_rate = _calc_hit_rate(player_games[:10], target, over_under, stat)
+    l20_hit_rate = _calc_hit_rate(player_games[:20], target, over_under, stat)
+
+    games = [
+        _is_hit(_get_stat_value(game, stat), target, over_under)
+        for game in player_games
+        if game.min and game.min > 0
+    ]
+    last_percent_rate, last_percent_total = last_percent(games)
+
+    return {
+        "player_id": player_id,
+        "player_name": player_name,
+        "prop_id": prop.id,
+        "l5_hit_rate": l5_hit_rate,
+        "l10_hit_rate": l10_hit_rate,
+        "l20_hit_rate": l20_hit_rate,
+        "last_percent_total": last_percent_total,
+        "last_percent_rate": last_percent_rate / 100,  # store as 0.882 not 88.2
+    }
+
+def store_calculated_stats(session: Session, stats: dict):
+    # Check if a record for the given prop_id already exists
+    existing_record = session.query(PlayerStatsCalculated).filter(
+        PlayerStatsCalculated.prop_id == stats["prop_id"]
+    ).first()
+
+    if existing_record:
+        # Update the existing record
+        existing_record.l5_hit_rate = stats["l5_hit_rate"]
+        existing_record.l10_hit_rate = stats["l10_hit_rate"]
+        existing_record.l20_hit_rate = stats["l20_hit_rate"]
+        existing_record.last_percent_total = stats["last_percent_total"]
+        existing_record.last_percent_rate = stats["last_percent_rate"]
+        print(f"""🔄 Updating existing record:
+        Player ID: {existing_record.player_id}
+        Name: {existing_record.player_name}
+        Prop ID: {existing_record.prop_id}
+        L5: {existing_record.l5_hit_rate}
+        L10: {existing_record.l10_hit_rate}
+        L20: {existing_record.l20_hit_rate}
+        Last %: {existing_record.last_percent_total} ({existing_record.last_percent_rate})
+        """)
+    else:
+        # Create a new record
+        player_stats_calculated = PlayerStatsCalculated(
+            player_id=stats["player_id"],
+            player_name=stats["player_name"],
+            prop_id=stats["prop_id"],
+            l5_hit_rate=stats["l5_hit_rate"],
+            l10_hit_rate=stats["l10_hit_rate"],
+            l20_hit_rate=stats["l20_hit_rate"],
+            last_percent_total=stats["last_percent_total"],
+            last_percent_rate=stats["last_percent_rate"]
+        )
+        session.add(player_stats_calculated)
+        print(f"""➡️ Adding new record:
+        Player ID: {player_stats_calculated.player_id}
+        Name: {player_stats_calculated.player_name}
+        Prop ID: {player_stats_calculated.prop_id}
+        L5: {player_stats_calculated.l5_hit_rate}
+        L10: {player_stats_calculated.l10_hit_rate}
+        L20: {player_stats_calculated.l20_hit_rate}
+        Last %: {player_stats_calculated.last_percent_total} ({player_stats_calculated.last_percent_rate})
+        """)
+
+    # Commit the changes to the database
+    session.commit()
+    print("✅ Stats committed to database.")
+
+def calculate_and_store_stats_bulk(session: Session, props: list):
+    """Batch calculate and store stats for a list of props."""    
+    print("Start calculating stats (bulk).  Will take a moment...")
+    # Preload all player game logs
+    player_ids = {prop.player_id for prop in props}
+    player_game_logs = session.query(PlayerGameLog).filter(
+        PlayerGameLog.player_id.in_(player_ids)
+    ).order_by(PlayerGameLog.game_date.desc()).all()
+
+    # Preload existing PlayerStatsCalculated records
+    prop_ids = [prop.id for prop in props]
+    existing_stats = {
+        record.prop_id: record
+        for record in session.query(PlayerStatsCalculated).filter(
+            PlayerStatsCalculated.prop_id.in_(prop_ids)
+        ).all()
+    }
+
+    stats_list = []
+    for prop in props:
+        # Filter game logs for the current player
+        player_logs = [log for log in player_game_logs if log.player_id == prop.player_id]
+
+        # Perform calculations
+        prop_stat = STAT_MAPPING.get(prop.stat, "pts")
+        l5_hit_rate = _calc_hit_rate(player_logs[:5], prop.target, prop.over_under, prop_stat)
+        l10_hit_rate = _calc_hit_rate(player_logs[:10], prop.target, prop.over_under, prop_stat)
+        l20_hit_rate = _calc_hit_rate(player_logs[:20], prop.target, prop.over_under, prop_stat)
+        hits = [
+            _is_hit(_get_stat_value(log, prop_stat), prop.target, prop.over_under)
+            for log in player_logs
+            if log.min and log.min > 0
+        ]
+        last_percent_rate, last_percent_total = last_percent(hits)
+
+        stats = {
+            "player_id": prop.player_id,
+            "player_name": prop.player_name,
+            "prop_id": prop.id,
+            "l5_hit_rate": l5_hit_rate,
+            "l10_hit_rate": l10_hit_rate,
+            "l20_hit_rate": l20_hit_rate,
+            "last_percent_total": last_percent_total,
+            "last_percent_rate": last_percent_rate / 100,  # store as 0.882 not 88.2
+        }
+        stats_list.append(stats)
+
+    # Batch insert or update stats
+    for stats in stats_list:
+        if stats["prop_id"] in existing_stats:
+            # Update existing record
+            record = existing_stats[stats["prop_id"]]
+            record.l5_hit_rate = stats["l5_hit_rate"]
+            record.l10_hit_rate = stats["l10_hit_rate"]
+            record.l20_hit_rate = stats["l20_hit_rate"]
+            record.last_percent_total = stats["last_percent_total"]
+            record.last_percent_rate = stats["last_percent_rate"]
+        else:
+            # Add new record
+            player_stats_calculated = PlayerStatsCalculated(
+                player_id=stats["player_id"],
+                player_name=stats["player_name"],
+                prop_id=stats["prop_id"],
+                l5_hit_rate=stats["l5_hit_rate"],
+                l10_hit_rate=stats["l10_hit_rate"],
+                l20_hit_rate=stats["l20_hit_rate"],
+                last_percent_total=stats["last_percent_total"],
+                last_percent_rate=stats["last_percent_rate"]
+            )
+            session.add(player_stats_calculated)
+
+    # Commit all changes in one go
+    session.commit()
+    print(f"✅ Bulk stats committed to database.")
+
+def main():
+    parser = argparse.ArgumentParser(description="Calculate hit rates for a given prop_id")
+    parser.add_argument("prop_id", type=int, nargs="?", help="The ID of the prop to calculate hit rates for")
+    args = parser.parse_args()
+
+    engine = create_engine(DATABASE_URL)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    session = SessionLocal()
+
+    if args.prop_id is not None:
+        # Run for one specific prop_id
+        prop_id = args.prop_id
+        prop = session.query(PrizePicksProp).filter(PrizePicksProp.id == prop_id).first()
+        if not prop:
+            print(f"❌ Prop with id {prop_id} not found")
+        else:
+            stats = calculate_hit_rates(session, prop)
+            if stats:
+                print(f"""Stats for prop_id {prop_id}:
+        Player ID: {stats['player_id']}
+        Name: {stats['player_name']}
+        Prop ID: {stats['prop_id']}
+        L5: {stats['l5_hit_rate']}
+        L10: {stats['l10_hit_rate']}
+        L20: {stats['l20_hit_rate']}
+        Last %: {stats['last_percent_total']} ({stats['last_percent_rate']})
+        """)
+            else:
+                print("Failed to calculate stats for the given prop_id")
+    else:
+        # Batch mode — full stats including last% stored in DB
+        props = session.query(PrizePicksProp).all()
+        for prop in props:
+            print(f"Processing prop_id: {prop.id} for player: {prop.player_name}")
+            stats = calculate_hit_rates(session, prop)
+            if stats:
+                store_calculated_stats(session, stats)
+                print(f"✅ Hit rates calculated and stored for prop_id: {prop.id}")
+            else:
+                print(f"❌ Failed to calculate hit rates for prop_id: {prop.id}")
+
+
+if __name__ == "__main__":
+    main()

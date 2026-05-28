@@ -1,0 +1,73 @@
+from sqlalchemy.orm import Session
+from alphabetter.nba_backend.database import get_db
+from alphabetter.nba_backend.models import PrizePicksProp, OddsType
+from alphabetter.nba_backend.get_props.get_props import load_bets_json, create_props
+# NOTE: store_prize_picks_props is not called by the active pipeline (fetch_and_calculate_all).
+# The NBA API get_player_id below is broken (stats.nba.com unreachable); left for reference only.
+from pathlib import Path
+from alphabetter.nba_backend.get_props.gen_prizepicks_json import gen_prizepicks_json
+
+SCRIPT_DIR = Path(__file__).parent
+
+# Function to call the executable and generate the JSON file
+def generate_prop_files():
+    """Generate the all prop JSON file by running the appropriate command based on the OS."""
+    gen_prizepicks_json()
+
+# Function to store PrizePicks props in the database
+def store_prize_picks_props(db: Session, props: list):
+    for prop in props:
+
+        #Skip fantasy score for now.  unsupported.
+        if prop.stat == "Fantasy Score" or prop.stat == "Dunks":  # Skip unsupported stats
+            print(f"Skipping prop for {prop.player_name} with stat 'Fantasy Score'")
+            continue
+        
+        from alphabetter.nba_backend.common.nba_api_common import get_player_id as _nba_get_player_id
+        prop_player_id = _nba_get_player_id(prop.player_name)
+
+        new_prop = PrizePicksProp(
+            player_name=prop.player_name,
+            player_id=prop_player_id,
+            stat=prop.stat,
+            target=prop.target,
+            over_under=prop.over_under,
+            odds_type=prop.odds_type.value  # Store enum as string
+        )
+        db.add(new_prop)
+
+        # If odds_type is "standard", add another entry with over_under set to "under"
+        if prop.odds_type == OddsType.STANDARD:
+            new_prop_under = PrizePicksProp(
+                player_name=prop.player_name,
+                player_id=prop_player_id,
+                stat=prop.stat,
+                target=prop.target,
+                over_under="under",
+                odds_type=prop.odds_type.value  # Store enum as string
+            )
+            db.add(new_prop_under)
+
+    db.commit()
+
+def fetch_and_store_prop_data():
+    # Generate the JSON file
+    generate_prop_files()
+
+    # Load the JSON data
+    bet_data = load_bets_json()
+
+    # Create props from the JSON data
+    props = create_props(bet_data)
+
+    # Store props in the database
+    db: Session = next(get_db())
+    store_prize_picks_props(db, props)
+    db.close()
+
+    print("Stored PrizePicks props successfully!")
+
+    return props
+
+if __name__ == "__main__":
+    fetch_and_store_prop_data()

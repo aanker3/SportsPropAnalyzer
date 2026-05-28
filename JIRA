@@ -1,0 +1,43 @@
+0: Figure out which features we want
+1: Design App
+2:
+
+--STORY 1: MAKE Last 10 (x) Graphical.--
+--Story 4: Make props clickable. Show show the last 10 page.--
+1a. --What should it show when clicked?--
+2a. --Add ability to display other other graphs in the modal. (props.cash uses H2H, 24/25, L5, L10, L20) I want to provide L# and best #.
+
+Story 2: Make a player page ??
+
+Story 3: Figure out the stats i need.
+
+-----Story 5: Figure out Last%----
+
+------Story 6: Order props. based on what the user wants. Options are In order, by player, by last5,10,%,
+
+---
+
+Story 7: Get matchup for props
+
+Story 8: Need to figure out how to get news / see injuries / see how players perform with injuries.
+
+Story 9: See Defensive rankings. Ex: Pacers give up the most 3s in the league. Or Pacers give up the most points to centers. Also offensive rankings! (spurs shoot the most 3s in the league)
+
+Story 10: Fix Fetching. Must make fetching seamless.
+-One option is to: instead of deleting tables, create "replacement" tables and then once those tables are ready, delete the prod tables and replace them with replacement tables, ensuring no downtime.
+
+Story 11: Instead of deleting all of the rows and tables first, i want to gather all of the info first and then once all of the info is ready, delete and replace the database table rows
+
+Story 12: Get Avg, median mode in modal for select game amount to props page.
+
+Story 13: GO ONLINE.
+
+- Use railway for db + fast api (there is a free tier)
+- Vercel for react hosting + website name
+
+Story 15: New Page: Daily Updates.
+Includes player reports, player breakouts/dropoffs, breaking news.
+
+Story 16: Add env var for database.
+
+Story 17: Fix bug in bulk fetching/bulk calculation
