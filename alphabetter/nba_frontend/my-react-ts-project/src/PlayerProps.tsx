@@ -64,6 +64,7 @@ export default function PlayerProps() {
   const [selectedProp, setSelectedProp] = useState<Prop | null>(null);
   const [chartData, setChartData] = useState<any>(null);
   const [chartOptions, setChartOptions] = useState<any>(null);
+  const [chartKey, setChartKey] = useState(0);
   const [sliderValue, setSliderValue] = useState(10);
   const [sortKey, setSortKey] = useState<SortKey>('l10_hit_rate');
   const [search, setSearch] = useState('');
@@ -97,6 +98,7 @@ export default function PlayerProps() {
       return hit ? 'rgba(34,197,94,0.8)' : 'rgba(239,68,68,0.7)';
     });
 
+    setChartKey(k => k + 1);
     setChartData({
       labels,
       datasets: [{ label: result.prop.stat, data: values, backgroundColor: colors, borderRadius: 4, borderWidth: 0 }],
@@ -331,9 +333,9 @@ export default function PlayerProps() {
               </div>
             )}
 
-            {/* Chart */}
+            {/* Chart — key forces full remount on every fetch so slider always reflects new data */}
             <div className="h-56">
-              {chartData && chartOptions && <Bar data={chartData} options={chartOptions} />}
+              {chartData && chartOptions && <Bar key={chartKey} data={chartData} options={chartOptions} />}
             </div>
 
             {/* Slider */}
