@@ -41,6 +41,7 @@ class PlayerGameLog(Base):
     ftm = Column(Float)
     fta = Column(Float)
     ft_pct = Column(Float)
+    pf = Column(Float)
 
 class TeamInfo(Base):
     __tablename__ = "team_info"

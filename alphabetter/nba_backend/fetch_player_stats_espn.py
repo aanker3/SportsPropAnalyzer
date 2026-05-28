@@ -142,6 +142,7 @@ def fetch_player_stats_espn(espn_id: str, player_name: str) -> tuple:
                     "ftm": float(ftm),
                     "fta": float(fta),
                     "ft_pct": stat_val("FT%"),
+                    "pf": stat_val("PF"),
                 })
 
     return player_name, team_name, team_id, game_logs

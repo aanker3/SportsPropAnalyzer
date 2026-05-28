@@ -23,6 +23,7 @@ STAT_MAPPING = {
     "FG Attempted": "fga",
     "Two Pointers Made": "2pm",       # computed: fgm - fg3m
     "Two Pointers Attempted": "2pa",  # computed: fga - fg3a
+    "Personal Fouls": "pf",
     # Combined stats
     "Rebs+Asts": ["reb", "ast"],
     "Pts+Rebs+Asts": ["pts", "reb", "ast"],

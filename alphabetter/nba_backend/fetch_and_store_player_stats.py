@@ -121,6 +121,7 @@ def store_player_stats(db: Session, player_id: int, player_name: str, team: str,
             ftm=float(log["ftm"]),
             fta=float(log["fta"]),
             ft_pct=float(log["ft_pct"]),
+            pf=float(log.get("pf", 0.0)),
         )
         db.add(new_game_log)
 

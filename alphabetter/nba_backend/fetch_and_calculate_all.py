@@ -18,7 +18,14 @@ from alphabetter.nba_backend.stat_collector.calculate_and_store_lastx import (
 from alphabetter.nba_backend.database import get_db
 
 
-# async_process_props.py
+# Stats we can't calculate from available data (no per-period or unsupported breakdowns)
+UNSUPPORTED_STATS = {
+    "Fantasy Score",
+    "Dunks",
+    "Points - 1st 3 Minutes",
+    "Assists - 1st 3 Minutes",
+    "Rebounds - 1st 3 Minutes",
+}
 
 def delete_all_rows(session: Session):
     """Delete all rows from all tables."""
@@ -126,7 +133,7 @@ def fetch_and_calculate_and_store():
     fetched_players = set()
 
     for index, prop in enumerate(props, start=1):
-        if prop.stat in ("Fantasy Score", "Dunks"):
+        if prop.stat in UNSUPPORTED_STATS:
             print(f"Skipping {prop.stat} for {prop.player_name}")
             continue
 
