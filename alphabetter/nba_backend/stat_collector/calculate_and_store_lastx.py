@@ -16,17 +16,20 @@ STAT_MAPPING = {
     "Blocked Shots": "blk",
     "Turnovers": "tov",
     "3-PT Made": "fg3m",
+    "3-PT Attempted": "fg3a",
     "Free Throws Made": "ftm",
+    "Free Throws Attempted": "fta",
     "FG Made": "fgm",
     "FG Attempted": "fga",
-    "3-PT Attempted": "fg3a",
+    "Two Pointers Made": "2pm",       # computed: fgm - fg3m
+    "Two Pointers Attempted": "2pa",  # computed: fga - fg3a
     # Combined stats
     "Rebs+Asts": ["reb", "ast"],
     "Pts+Rebs+Asts": ["pts", "reb", "ast"],
     "Pts+Asts": ["pts", "ast"],
     "Pts+Rebs": ["pts", "reb"],
     "Blks+Stls": ["blk", "stl"],
-    "Fantasy Score": "fantasy_score",  # Special case for Fantasy Score
+    "Fantasy Score": "fantasy_score",
 }
 
 
@@ -41,6 +44,10 @@ def _get_stat_value(game, stat):
             getattr(game, "stl", 0) * 3 +
             getattr(game, "tov", 0) * -1
         )
+    if stat == "2pm":  # Two Pointers Made = FGM - 3PM
+        return getattr(game, "fgm", 0) - getattr(game, "fg3m", 0)
+    if stat == "2pa":  # Two Pointers Attempted = FGA - 3PA
+        return getattr(game, "fga", 0) - getattr(game, "fg3a", 0)
     if isinstance(stat, list):
         return sum(getattr(game, s, 0) for s in stat)
     return getattr(game, stat, 0)
