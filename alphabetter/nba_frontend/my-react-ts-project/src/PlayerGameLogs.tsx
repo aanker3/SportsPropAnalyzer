@@ -25,7 +25,7 @@ interface GameLog {
   ft_pct: number;
 }
 
-const pct = (v: number) => v > 0 ? `${(v * 100).toFixed(1)}%` : '—';
+const pct = (v: number) => v > 0 ? `${v.toFixed(1)}%` : '—';
 const num = (v: number) => v > 0 ? v : '—';
 
 export default function PlayerGameLogs() {
