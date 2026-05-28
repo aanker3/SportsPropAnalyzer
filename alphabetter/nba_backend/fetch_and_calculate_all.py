@@ -8,17 +8,14 @@ from alphabetter.nba_backend.fetch_and_store_prop_data import (
     create_props,
     generate_prop_files,
 )
-from alphabetter.nba_backend.fetch_and_store_player_stats import (
-    fetch_player_stats,
-    store_player_stats,
-)
+from alphabetter.nba_backend.fetch_and_store_player_stats import store_player_stats
+from alphabetter.nba_backend.fetch_player_stats_espn import build_espn_player_map, fetch_player_stats_espn
 from alphabetter.nba_backend.stat_collector.calculate_and_store_lastx import (
     store_calculated_stats,
     calculate_hit_rates,
     calculate_and_store_stats_bulk
 )
 from alphabetter.nba_backend.database import get_db
-from alphabetter.nba_backend.common.nba_api_common import get_player_id
 
 
 # async_process_props.py
@@ -114,82 +111,69 @@ def delete_all_rows(session: Session):
 
 def fetch_and_calculate_and_store():
 
-     total_start_time = time.time()  # Start timing the entire process
- 
-     delete_all_rows(session=next(get_db()))
-     # Load and create props
-     generate_prop_files()
- 
-     bet_data = load_bets_json()
-     props = create_props(bet_data)
- 
-     db: Session = next(get_db())
-     fetched_players = set()
- 
-     for index, prop in enumerate(props,start=1):
-         if prop.stat == "Fantasy Score" or prop.stat == "Dunks":  # Skip unsupported stats
-             print(f"Skipping Fantasy Score for {prop.player_name}")
-             continue
- 
-         # Get player_id
-         try:
-             player_id = get_player_id(prop.player_name)
-         except ValueError as e:
-             print(f"❌ {e} Skipping.")
-             continue
- 
-         if player_id is None:
-             print(f"Player ID not found for {prop.player_name}, skipping.")
-             continue
- 
-         # Time processing for each player
-         player_start_time = time.time()
- 
-         # Fetch & store player stats if not already done
-         if player_id not in fetched_players:
-             try:
-                 player_name, team, team_id, game_logs = fetch_player_stats(player_id)
-                 store_player_stats(db, player_id, player_name, team, team_id, game_logs)
-                 fetched_players.add(player_id)
-                 print(f"✅ Stored stats for {player_name}")
-                 time.sleep(0.5)
-             except Exception as e:
-                 print(f"❌ Failed to fetch/store stats for {prop.player_name}: {e}")
-                 continue
- 
-         # Store prop in DB
-         new_prop = PrizePicksProp(
-             player_name=prop.player_name,
-             player_id=player_id,
-             stat=prop.stat,
-             target=prop.target,
-             over_under=prop.over_under,
-             odds_type=prop.odds_type.value,
-         )
-         db.add(new_prop)
-         db.commit()
- 
-         # Calculate and store lastX stats
-         session = db  # reuse
-         calculated_stats = calculate_hit_rates(session, new_prop)
-         if calculated_stats:
-             store_calculated_stats(session, calculated_stats)
-             print(f"✅ Calculated and stored stats for prop_id {new_prop.id}")
-         else:
-             print(f"❌ Failed stats calc for prop_id {new_prop.id}")
- 
-         # Log time taken for this player
-         player_elapsed_time = time.time() - player_start_time
-         print(f"⏱️ Time taken for {prop.player_name}: {player_elapsed_time:.2f} seconds")
-         print(f"# of players fetched: {len(fetched_players)}")
-         print(f"# of props stored: {index}/{len(props)}")
-     db.close()
- 
-     # Log total time taken
-     total_elapsed_time = time.time() - total_start_time
-     print(f"🎉 Total time taken for all players: {total_elapsed_time:.2f} seconds")
+    total_start_time = time.time()
 
-     return len(props)
+    delete_all_rows(session=next(get_db()))
+    generate_prop_files()
+
+    bet_data = load_bets_json()
+    props = create_props(bet_data)
+
+    print("Building ESPN player ID map...")
+    espn_player_map = build_espn_player_map()
+
+    db: Session = next(get_db())
+    fetched_players = set()
+
+    for index, prop in enumerate(props, start=1):
+        if prop.stat in ("Fantasy Score", "Dunks"):
+            print(f"Skipping {prop.stat} for {prop.player_name}")
+            continue
+
+        espn_id = espn_player_map.get(prop.player_name)
+        if not espn_id:
+            print(f"ESPN ID not found for {prop.player_name}, skipping.")
+            continue
+
+        player_id = int(espn_id)
+        player_start_time = time.time()
+
+        if player_id not in fetched_players:
+            try:
+                player_name, team, team_id, game_logs = fetch_player_stats_espn(espn_id, prop.player_name)
+                store_player_stats(db, player_id, player_name, team, team_id, game_logs)
+                fetched_players.add(player_id)
+                print(f"Stored {len(game_logs)} game logs for {player_name}")
+                time.sleep(0.3)
+            except Exception as e:
+                print(f"Failed to fetch/store stats for {prop.player_name}: {e}")
+                continue
+
+        new_prop = PrizePicksProp(
+            player_name=prop.player_name,
+            player_id=player_id,
+            stat=prop.stat,
+            target=prop.target,
+            over_under=prop.over_under,
+            odds_type=prop.odds_type.value,
+        )
+        db.add(new_prop)
+        db.commit()
+
+        calculated_stats = calculate_hit_rates(db, new_prop)
+        if calculated_stats:
+            store_calculated_stats(db, calculated_stats)
+        else:
+            print(f"No stats calc for {prop.player_name} / {prop.stat}")
+
+        player_elapsed = time.time() - player_start_time
+        print(f"Done: {prop.player_name} {prop.stat} ({player_elapsed:.1f}s) [{index}/{len(props)}]")
+
+    db.close()
+
+    total_elapsed = time.time() - total_start_time
+    print(f"Total time: {total_elapsed:.1f}s | Players: {len(fetched_players)} | Props attempted: {len(props)}")
+    return len(props)
 
 
 if __name__ == "__main__":
