@@ -5,6 +5,7 @@ import os
 DATABASE_URL = os.getenv(
     "DATABASE_URL", "postgresql://postgres:BigStink44@localhost/nba_stats"
 )
+# DATABASE_URL = "postgresql://alphabettor_user:eMuCfB0r0sw5Rr3aeQxnyXWz2kqrR2Oy@dpg-cvhobs2qgecs73d2s4d0-a.oregon-postgres.render.com/alphabettor"
 #DATABASE_URL = "postgresql://postgres:BigStink44@localhost/nba_stats"
 # Connect to PostgreSQL
 engine = create_engine(DATABASE_URL)
