@@ -1,11 +1,11 @@
 import { BrowserRouter as Router, Route, Routes, Link, useLocation } from 'react-router-dom';
 import PlayerProps from './PlayerProps';
-import PlayerGameLogs from './PlayerGameLogs';
+import Players from './Players';
 import PlayerStats from './PlayerStats';
 
 const NAV_LINKS = [
   { to: '/player-props', label: 'Props' },
-  { to: '/player-gamelogs', label: 'Game Logs' },
+  { to: '/players', label: 'Players' },
   { to: '/player-stats', label: 'Stat Lookup' },
 ];
 
@@ -46,7 +46,7 @@ function App() {
           <Routes>
             <Route path="/" element={<PlayerProps />} />
             <Route path="/player-props" element={<PlayerProps />} />
-            <Route path="/player-gamelogs" element={<PlayerGameLogs />} />
+            <Route path="/players" element={<Players />} />
             <Route path="/player-stats" element={<PlayerStats />} />
           </Routes>
         </main>
