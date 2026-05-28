@@ -67,6 +67,7 @@ export default function PlayerProps() {
   const [chartKey, setChartKey] = useState(0);
   const [sliderValue, setSliderValue] = useState(10);
   const [sortKey, setSortKey] = useState<SortKey>('l10_hit_rate');
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
   const [search, setSearch] = useState('');
   const [oddsFilter, setOddsFilter] = useState('all');
   const [loading, setLoading] = useState(true);
@@ -157,9 +158,14 @@ export default function PlayerProps() {
       .sort((a, b) => {
         const sa = stats[a.id]?.[sortKey] ?? 0;
         const sb = stats[b.id]?.[sortKey] ?? 0;
-        return sb - sa;
+        return sortDir === 'desc' ? sb - sa : sa - sb;
       });
-  }, [props, stats, search, oddsFilter, sortKey]);
+  }, [props, stats, search, oddsFilter, sortKey, sortDir]);
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir(d => d === 'desc' ? 'asc' : 'desc');
+    else { setSortKey(key); setSortDir('desc'); }
+  };
 
   const summaryStats = useMemo(() => {
     const vals = Object.values(stats);
@@ -208,20 +214,6 @@ export default function PlayerProps() {
           <option value="goblin">Goblin</option>
           <option value="standard">Standard</option>
         </select>
-        <div className="flex items-center gap-2 ml-auto">
-          <span className="text-xs text-gray-500">Sort by</span>
-          {(['l5_hit_rate', 'l10_hit_rate', 'l20_hit_rate', 'last_percent_rate'] as SortKey[]).map(k => (
-            <button
-              key={k}
-              onClick={() => setSortKey(k)}
-              className={`h-8 rounded-lg px-3 text-xs font-medium transition-colors ${
-                sortKey === k ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
-              }`}
-            >
-              {k === 'last_percent_rate' ? 'Best %' : k.replace('_hit_rate', '').toUpperCase()}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Props count */}
@@ -239,10 +231,20 @@ export default function PlayerProps() {
                 <th className="px-4 py-3 text-left">Stat</th>
                 <th className="px-4 py-3 text-center">Line</th>
                 <th className="px-4 py-3 text-center">Type</th>
-                <th className="px-4 py-3 text-left min-w-[110px]">L5</th>
-                <th className="px-4 py-3 text-left min-w-[110px]">L10</th>
-                <th className="px-4 py-3 text-left min-w-[110px]">L20</th>
-                <th className="px-4 py-3 text-left">Best %</th>
+                {([['l5_hit_rate','L5'],['l10_hit_rate','L10'],['l20_hit_rate','L20'],['last_percent_rate','Best %']] as [SortKey,string][]).map(([key, label]) => (
+                  <th
+                    key={key}
+                    onClick={() => handleSort(key)}
+                    className="px-4 py-3 text-left min-w-[110px] cursor-pointer select-none hover:text-white transition-colors"
+                  >
+                    <span className="flex items-center gap-1">
+                      {label}
+                      <span className="text-gray-600">
+                        {sortKey === key ? (sortDir === 'desc' ? '▼' : '▲') : '⇅'}
+                      </span>
+                    </span>
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800/60">
