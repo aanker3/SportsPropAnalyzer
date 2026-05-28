@@ -74,6 +74,10 @@ export default function Players() {
   const [loading, setLoading] = useState(false);
   const [fetched, setFetched] = useState('');
 
+  type SortKey = 'l5_hit_rate' | 'l10_hit_rate' | 'l20_hit_rate' | 'last_percent_rate';
+  const [propSort, setPropSort] = useState<SortKey | null>(null);
+  const [propSortDir, setPropSortDir] = useState<'desc' | 'asc'>('desc');
+
   const [allPlayers, setAllPlayers] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -160,6 +164,23 @@ export default function Players() {
     setShowSuggestions(false);
     doFetch(playerName);
   };
+
+  const handlePropSort = (key: SortKey) => {
+    if (propSort === key) {
+      setPropSortDir(d => d === 'desc' ? 'asc' : 'desc');
+    } else {
+      setPropSort(key);
+      setPropSortDir('desc');
+    }
+  };
+
+  const sortedProps = propSort
+    ? [...playerProps].sort((a, b) => {
+        const va = statsMap[a.id]?.[propSort] ?? 0;
+        const vb = statsMap[b.id]?.[propSort] ?? 0;
+        return propSortDir === 'desc' ? vb - va : va - vb;
+      })
+    : playerProps;
 
   const avg = (key: keyof GameLog) => {
     const active = gameLogs.filter(g => g.min > 0);
@@ -258,14 +279,24 @@ export default function Players() {
                       <th className="px-4 py-3 text-left">Stat</th>
                       <th className="px-4 py-3 text-center">Line</th>
                       <th className="px-4 py-3 text-center">Type</th>
-                      <th className="px-4 py-3 text-left min-w-[110px]">L5</th>
-                      <th className="px-4 py-3 text-left min-w-[110px]">L10</th>
-                      <th className="px-4 py-3 text-left min-w-[110px]">L20</th>
-                      <th className="px-4 py-3 text-left">Best %</th>
+                      {([ ['l5_hit_rate','L5'], ['l10_hit_rate','L10'], ['l20_hit_rate','L20'], ['last_percent_rate','Best %'] ] as [SortKey, string][]).map(([key, label]) => (
+                        <th
+                          key={key}
+                          onClick={() => handlePropSort(key)}
+                          className="px-4 py-3 text-left min-w-[110px] cursor-pointer select-none hover:text-white transition-colors"
+                        >
+                          <span className="flex items-center gap-1">
+                            {label}
+                            <span className="text-gray-600">
+                              {propSort === key ? (propSortDir === 'desc' ? '▼' : '▲') : '⇅'}
+                            </span>
+                          </span>
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-800/60">
-                    {playerProps.map(prop => {
+                    {sortedProps.map(prop => {
                       const s = statsMap[prop.id];
                       return (
                         <tr key={prop.id} className="bg-gray-900/30 hover:bg-gray-800/50 transition-colors">
