@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from alphabetter.nba_backend.database import get_db
 from alphabetter.nba_backend.models import PlayerGameLog, PrizePicksProp, PlayerStatsCalculated
-from alphabetter.nba_backend.stat_collector.calculate_and_store_lastx import calculate_hit_rates, store_calculated_stats
+from alphabetter.nba_backend.stat_collector.calculate_and_store_lastx import calculate_hit_rates, store_calculated_stats, STAT_MAPPING, _get_stat_value
 from alphabetter.nba_backend.player_utils import get_player_id
 from alphabetter.nba_backend.crud.player_gamelogs import fetch_player_gamelogs
 from alphabetter.nba_backend.fetch_and_calculate_all import fetch_and_calculate_and_store
@@ -28,15 +28,12 @@ async def get_player_gamelogs(player_name: str, db: Session = Depends(get_db)):
     return {"game_logs": game_logs}
 
 @app.post("/api/fetch_and_calculate_all_bg")
-def fetch_and_calculate_all(background_tasks: BackgroundTasks):
-    # Run the task in the background
-    print("Called /api/fetch_and_calculate_all_bg")
+def run_pipeline_background(background_tasks: BackgroundTasks):
     background_tasks.add_task(fetch_and_calculate_and_store)
     return {"status": "Task started in the background"}
 
 @app.post("/api/fetch_and_calculate_all")
-def fetch_and_calculate_all():
-    print("Called /api/fetch_and_calculate_all")
+def run_pipeline_sync():
     prop_num = fetch_and_calculate_and_store()
     return {"prop_num": prop_num}
 
@@ -124,35 +121,9 @@ async def get_player_last_x(prop_id: int, num_games: int, db: Session = Depends(
 
     player_id = prop.player_id
 
-    # Mapping of stat names from PrizePicksProp to PlayerGameLog
-    #TODO most of the right side is wrong...
-    stat_mapping = {
-        "Points": "pts",  # Points scored
-        "Rebounds": "reb",  # Total rebounds
-        "Offensive Rebounds": "oreb",  # Offensive rebounds
-        "Defensive Rebounds": "dreb",  # Defensive rebounds
-        "Assists": "ast",  # Assists
-        "Steals": "stl",  # Steals
-        "Blocks": "blk",  # Blocks
-        "Blocked Shots": "blk",  # Alias for Blocks
-        "Turnovers": "tov",  # Turnovers
-        "3-PT Made": "fg3m",  # 3-Point field goals made
-        "Free Throws Made": "ftm",  # Free throws made
-        "FG Made": "fgm",  # Field goals made
-        "FG Attempted": "fga",  # Field goals attempted
-        "3-PT Attempted": "fg3a",  # 3-Point field goals attempted
-        # Derived stats
-        "Rebs+Asts": ["reb", "ast"],  # Rebounds + Assists
-        "Pts+Rebs+Asts": ["pts", "reb", "ast"],  # Points + Rebounds + Assists
-        "Pts+Asts": ["pts", "ast"],  # Points + Assists
-        "Pts+Rebs": ["pts", "reb"],  # Points + Rebounds
-        "Blks+Stls": ["blk", "stl"], 
-    }
-
-
-    stat_type = stat_mapping.get(prop.stat)
-    if not stat_type:
-        return {"message": f"Stat '{prop.stat}' not found in PlayerGameLog."}
+    stat_type = STAT_MAPPING.get(prop.stat)
+    if not stat_type or stat_type == "fantasy_score":
+        return {"message": f"Stat '{prop.stat}' not supported in game log view."}
 
     game_logs = db.query(PlayerGameLog).filter(
         PlayerGameLog.player_id == player_id
@@ -163,10 +134,7 @@ async def get_player_last_x(prop_id: int, num_games: int, db: Session = Depends(
 
     result_info = []
     for game_log in game_logs:
-        if isinstance(stat_type, list):  # Handle compound stats
-            game_stat = sum(getattr(game_log, stat) for stat in stat_type)
-        else:  # Handle single stats
-            game_stat = getattr(game_log, stat_type)
+        game_stat = _get_stat_value(game_log, stat_type)
 
         game_minutes = getattr(game_log, "min")
         game_date = getattr(game_log, "game_date")

@@ -8,7 +8,7 @@ from alphabetter.nba_backend.fetch_and_store_prop_data import (
     create_props,
     generate_prop_files,
 )
-from alphabetter.nba_backend.fetch_and_store_player_stats import store_player_stats
+from alphabetter.nba_backend.fetch_and_store_player_stats import store_player_stats  # store fn still used; fetch_player_stats (NBA API) is not
 from alphabetter.nba_backend.fetch_player_stats_espn import build_espn_player_map, fetch_player_stats_espn
 from alphabetter.nba_backend.stat_collector.calculate_and_store_lastx import (
     store_calculated_stats,

@@ -1,30 +1,24 @@
 import os
-import sys
 import json
 import requests
 from pathlib import Path
 
 def gen_prizepicks_json():
-    # Get the directory where the script resides
     script_dir = Path(__file__).parent
     file_name = script_dir / "prizepicks_props.json"
 
-    # Delete the existing file if it exists
     if file_name.exists():
         try:
             os.remove(file_name)
         except OSError as e:
-            print(f"Failed to delete existing file: {e}")
-            sys.exit(1)
+            raise RuntimeError(f"Failed to delete existing props file: {e}") from e
 
-    # Set up HTTP session
     session = requests.Session()
-    session.verify = True  # SSL verification (False would be equivalent to InsecureSkipVerify=True)
+    session.verify = True
 
-    # NOTE: league_id=8 == NFL FYI
+    # NOTE: league_id=7 = NBA, league_id=8 = NFL
     url = "https://api.prizepicks.com/projections?league_id=7&per_page=250&single_stat=true"
 
-    # Set HTTP headers
     headers = {
         "Host": "api.prizepicks.com",
         "Sec-Ch-Ua": '"Not_A Brand";v="99", "Google Chrome";v="109", "Chromium";v="109"',
@@ -42,27 +36,21 @@ def gen_prizepicks_json():
         "If-Modified-Since": "Thu, 12 Jan 2023 19:23:47 GMT"
     }
 
-    # Make HTTP request
     try:
-        response = session.get(url, headers=headers)
-        response.raise_for_status()  # Raises an HTTPError for bad responses
+        response = session.get(url, headers=headers, timeout=30)
+        response.raise_for_status()
     except requests.exceptions.RequestException as e:
-        print(f"Request failed: {e}")
-        sys.exit(1)
+        raise RuntimeError(f"PrizePicks API request failed: {e}") from e
 
-    # Write to file
     try:
         with open(file_name, 'w') as f:
-            # If the response is JSON, you might want to pretty-print it
             try:
                 json_data = response.json()
                 json.dump(json_data, f, indent=2)
             except ValueError:
-                # If not JSON, write raw content
                 f.write(response.text)
     except IOError as e:
-        print(f"Failed to write file: {e}")
-        sys.exit(1)
+        raise RuntimeError(f"Failed to write props file: {e}") from e
 
     print(f"done - file saved at: {file_name}")
 

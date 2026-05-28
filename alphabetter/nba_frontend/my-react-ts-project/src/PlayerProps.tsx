@@ -69,10 +69,11 @@ function PlayerProps() {
       const statValues = result.game_logs.map((log) => log.stat_value);
       const target = result.prop.target;
 
+      const isOver = result.prop.over_under === 'over';
       const barColors = statValues.map((value) => {
-        if (value > target) return 'rgba(75, 192, 75, 0.8)'; // Green for above target
-        if (value < target) return 'rgba(255, 99, 132, 0.8)'; // Red for below target
-        return 'rgba(128, 128, 128, 0.8)'; // Grey for equal to target
+        const hit = isOver ? value >= target : value <= target;
+        if (hit) return 'rgba(75, 192, 75, 0.8)';
+        return 'rgba(255, 99, 132, 0.8)';
       });
 
       setChartData({
@@ -162,10 +163,10 @@ function PlayerProps() {
         const statValues = result.game_logs.map((log) => log.stat_value);
         const target = result.prop.target;
 
+        const isOver2 = result.prop.over_under === 'over';
         const barColors = statValues.map((value) => {
-          if (value > target) return 'rgba(75, 192, 75, 0.8)';
-          if (value < target) return 'rgba(255, 99, 132, 0.8)';
-          return 'rgba(128, 128, 128, 0.8)';
+          const hit = isOver2 ? value >= target : value <= target;
+          return hit ? 'rgba(75, 192, 75, 0.8)' : 'rgba(255, 99, 132, 0.8)';
         });
 
         setChartData({

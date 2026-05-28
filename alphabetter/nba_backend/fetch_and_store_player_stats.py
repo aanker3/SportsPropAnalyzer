@@ -14,10 +14,10 @@ def fetch_player_stats(player_id: int) -> list:
     team = player_info["TEAM_NAME"].iloc[0]
     team_id = player_info["TEAM_ID"].iloc[0]
     # Fetch the player's game logs
-    gamelog_df = playergamelog.PlayerGameLog(player_id=player_id, season='2024-25').get_data_frames()[0]
+    gamelog_df = playergamelog.PlayerGameLog(player_id=player_id, season='2025-26').get_data_frames()[0]
     time.sleep(.2)
     # Fetch the team's schedule
-    team_schedule_df = teamgamelog.TeamGameLog(team_id=team_id, season='2024-25').get_data_frames()[0]
+    team_schedule_df = teamgamelog.TeamGameLog(team_id=team_id, season='2025-26').get_data_frames()[0]
     time.sleep(.2)
     # Merge game log with team schedule
     merged_df = pd.merge(
@@ -134,7 +134,7 @@ def get_active_team_ids():
 
 def fetch_team_gamelog(team_id: int) -> list:
     """Fetches all games for the current season for a team using the NBA API."""
-    team_gamelog_df = teamgamelog.TeamGameLog(team_id=team_id, season='2024-25').get_data_frames()[0]
+    team_gamelog_df = teamgamelog.TeamGameLog(team_id=team_id, season='2025-26').get_data_frames()[0]
 
     team_logs = []
     for _, row in team_gamelog_df.iterrows():

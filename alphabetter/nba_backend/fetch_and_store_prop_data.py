@@ -2,7 +2,8 @@ from sqlalchemy.orm import Session
 from alphabetter.nba_backend.database import get_db
 from alphabetter.nba_backend.models import PrizePicksProp, OddsType
 from alphabetter.nba_backend.get_props.get_props import load_bets_json, create_props
-from alphabetter.nba_backend.common.nba_api_common import get_player_id
+# NOTE: store_prize_picks_props is not called by the active pipeline (fetch_and_calculate_all).
+# The NBA API get_player_id below is broken (stats.nba.com unreachable); left for reference only.
 from pathlib import Path
 from alphabetter.nba_backend.get_props.gen_prizepicks_json import gen_prizepicks_json
 
@@ -22,7 +23,8 @@ def store_prize_picks_props(db: Session, props: list):
             print(f"Skipping prop for {prop.player_name} with stat 'Fantasy Score'")
             continue
         
-        prop_player_id = get_player_id(prop.player_name) 
+        from alphabetter.nba_backend.common.nba_api_common import get_player_id as _nba_get_player_id
+        prop_player_id = _nba_get_player_id(prop.player_name)
 
         new_prop = PrizePicksProp(
             player_name=prop.player_name,

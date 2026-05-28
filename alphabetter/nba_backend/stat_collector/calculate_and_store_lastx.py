@@ -30,32 +30,35 @@ STAT_MAPPING = {
 }
 
 
+def _get_stat_value(game, stat):
+    """Extract the relevant stat value from a game log row."""
+    if stat == "fantasy_score":
+        return (
+            getattr(game, "pts", 0) * 1 +
+            getattr(game, "reb", 0) * 1.2 +
+            getattr(game, "ast", 0) * 1.5 +
+            getattr(game, "blk", 0) * 3 +
+            getattr(game, "stl", 0) * 3 +
+            getattr(game, "tov", 0) * -1
+        )
+    if isinstance(stat, list):
+        return sum(getattr(game, s, 0) for s in stat)
+    return getattr(game, stat, 0)
+
+
+def _is_hit(stat_value, target, over_under):
+    if over_under == 'over':
+        return stat_value >= target
+    return stat_value <= target  # under: exact match is also a hit (push)
+
+
 def _calc_hit_rate(games, target, over_under, stat):
-    """Calculate hit rate for given games list and specified stat."""
-    if not games:
+    """Calculate hit rate for given games list and specified stat. Excludes DNP rows."""
+    active_games = [g for g in games if g.min and g.min > 0]
+    if not active_games:
         return 0
-
-    def get_stat_value(game):
-        # Handle Fantasy Score calculation
-        if (stat == "fantasy_score"):
-            return (
-                getattr(game, "pts", 0) * 1 +
-                getattr(game, "reb", 0) * 1.2 +
-                getattr(game, "ast", 0) * 1.5 +
-                getattr(game, "blk", 0) * 3 +
-                getattr(game, "stl", 0) * 3 +
-                getattr(game, "tov", 0) * -1
-            )
-        # Handle single or combined stats
-        if isinstance(stat, list):
-            return sum(getattr(game, s, 0) for s in stat)
-        return getattr(game, stat, 0)
-
-    hits = sum(
-        1 for game in games
-        if (get_stat_value(game) >= target if over_under == 'over' else get_stat_value(game) < target)
-    )
-    return hits / len(games)
+    hits = sum(1 for g in active_games if _is_hit(_get_stat_value(g, stat), target, over_under))
+    return hits / len(active_games)
 
 def last_percent(hits: list[bool]) -> tuple[float, str]:
     # Initialize best values
@@ -113,27 +116,11 @@ def calculate_hit_rates(session: Session, prop: PrizePicksProp):
     l10_hit_rate = _calc_hit_rate(player_games[:10], target, over_under, stat)
     l20_hit_rate = _calc_hit_rate(player_games[:20], target, over_under, stat)
 
-    # Build hit list for last_percent
-    def get_stat_value(game):
-        if stat == "fantasy_score":
-            return (
-                getattr(game, "pts", 0) * 1 +
-                getattr(game, "reb", 0) * 1.2 +
-                getattr(game, "ast", 0) * 1.5 +
-                getattr(game, "blk", 0) * 3 +
-                getattr(game, "stl", 0) * 3 +
-                getattr(game, "tov", 0) * -1
-            )
-        if isinstance(stat, list):
-            return sum(getattr(game, s, 0) for s in stat)
-        return getattr(game, stat, 0)
-
     games = [
-        (get_stat_value(game) >= target if over_under == 'over' else get_stat_value(game) < target)
+        _is_hit(_get_stat_value(game, stat), target, over_under)
         for game in player_games
         if game.min and game.min > 0
     ]
-    print(f"games= {games}")  # Debugging line to check the games list
     last_percent_rate, last_percent_total = last_percent(games)
 
     return {
@@ -220,13 +207,12 @@ def calculate_and_store_stats_bulk(session: Session, props: list):
         player_logs = [log for log in player_game_logs if log.player_id == prop.player_id]
 
         # Perform calculations
-        l5_hit_rate = _calc_hit_rate(player_logs[:5], prop.target, prop.over_under, STAT_MAPPING.get(prop.stat, "pts"))
-        l10_hit_rate = _calc_hit_rate(player_logs[:10], prop.target, prop.over_under, STAT_MAPPING.get(prop.stat, "pts"))
-        l20_hit_rate = _calc_hit_rate(player_logs[:20], prop.target, prop.over_under, STAT_MAPPING.get(prop.stat, "pts"))
-
-        # Build hit list for last_percent
+        prop_stat = STAT_MAPPING.get(prop.stat, "pts")
+        l5_hit_rate = _calc_hit_rate(player_logs[:5], prop.target, prop.over_under, prop_stat)
+        l10_hit_rate = _calc_hit_rate(player_logs[:10], prop.target, prop.over_under, prop_stat)
+        l20_hit_rate = _calc_hit_rate(player_logs[:20], prop.target, prop.over_under, prop_stat)
         hits = [
-            (log.pts >= prop.target if prop.over_under == 'over' else log.pts < prop.target)
+            _is_hit(_get_stat_value(log, prop_stat), prop.target, prop.over_under)
             for log in player_logs
             if log.min and log.min > 0
         ]
@@ -284,9 +270,13 @@ def main():
     if args.prop_id is not None:
         # Run for one specific prop_id
         prop_id = args.prop_id
-        stats = calculate_hit_rates(session, prop_id)
-        if stats:
-            print(f"""🎯 Stats for prop_id {prop_id}:
+        prop = session.query(PrizePicksProp).filter(PrizePicksProp.id == prop_id).first()
+        if not prop:
+            print(f"❌ Prop with id {prop_id} not found")
+        else:
+            stats = calculate_hit_rates(session, prop)
+            if stats:
+                print(f"""Stats for prop_id {prop_id}:
         Player ID: {stats['player_id']}
         Name: {stats['player_name']}
         Prop ID: {stats['prop_id']}
@@ -295,14 +285,14 @@ def main():
         L20: {stats['l20_hit_rate']}
         Last %: {stats['last_percent_total']} ({stats['last_percent_rate']})
         """)
-        else:
-            print("❌ Failed to calculate stats for the given prop_id")
+            else:
+                print("Failed to calculate stats for the given prop_id")
     else:
         # Batch mode — full stats including last% stored in DB
         props = session.query(PrizePicksProp).all()
         for prop in props:
             print(f"Processing prop_id: {prop.id} for player: {prop.player_name}")
-            stats = calculate_hit_rates(session, prop.id)
+            stats = calculate_hit_rates(session, prop)
             if stats:
                 store_calculated_stats(session, stats)
                 print(f"✅ Hit rates calculated and stored for prop_id: {prop.id}")
