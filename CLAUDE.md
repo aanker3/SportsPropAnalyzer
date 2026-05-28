@@ -4,7 +4,37 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 ## Project Overview
 
-SportsPropAnalyzer (package name: `alphabetter`) is an NBA sports prop analysis tool. It fetches live PrizePicks props, pulls player game logs via the ESPN API, and calculates historical hit rates to help evaluate over/under bets.
+SportsPropAnalyzer (package name: `alphabetter`) is a sports prop analysis tool. It currently covers NBA via PrizePicks, but the long-term goal is to support multiple sports and multiple prop sources.
+
+**Current state:** NBA only, PrizePicks only.
+
+## Long-Term Goals
+
+### Multi-sport support
+The pipeline should work for NFL, NHL, MLB, and other sports — not just NBA. The architecture is largely sport-agnostic already:
+- PrizePicks uses the same JSON structure across all sports (just change `league_id`)
+- ESPN has roster + gamelog APIs for all major sports with the same URL pattern
+- The hit rate math, DB schema, and frontend are stat-agnostic
+
+What needs to be built per sport:
+- A `STAT_MAPPING` dict mapping that sport's PrizePicks stat names to ESPN column names
+- An `UNSUPPORTED_STATS` set for props that can't be calculated (e.g. "First TD Scorer")
+- Verification that ESPN's gamelog labels match expectations (they vary by sport)
+- A `sport` or `league_id` parameter threaded through the pipeline instead of hardcoded values
+
+The cleanest path: make `STAT_MAPPING`, `UNSUPPORTED_STATS`, and the ESPN endpoints sport-keyed so a single pipeline run can handle multiple sports simultaneously.
+
+### Multi-source props
+PrizePicks is the only prop source today. The goal is to support additional books/platforms:
+- **Underdog Fantasy** — there is already a scraper in `Research/underdog_scraper/`
+- **Other DFS/sportsbook sources** as they become relevant
+
+To add a new source:
+- Write a fetcher that outputs props in the same `Prop` dataclass format (`player_name`, `stat`, `target`, `over_under`, `odds_type`)
+- The rest of the pipeline (ESPN stats fetch, hit rate calc, DB storage) is shared
+- The frontend should eventually show which book a prop is from and allow filtering by source
+
+---
 
 ## Tech Stack
 
