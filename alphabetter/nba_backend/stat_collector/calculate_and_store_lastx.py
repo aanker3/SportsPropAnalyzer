@@ -30,12 +30,16 @@ STAT_MAPPING = {
     "Pts+Asts": ["pts", "ast"],
     "Pts+Rebs": ["pts", "reb"],
     "Blks+Stls": ["blk", "stl"],
+    "Double-Double": "double_double",  # 1 if ≥10 in 2+ of pts/reb/ast/blk/stl, else 0
     "Fantasy Score": "fantasy_score",
 }
 
 
 def _get_stat_value(game, stat):
     """Extract the relevant stat value from a game log row."""
+    if stat == "double_double":
+        categories = [getattr(game, c, 0) for c in ("pts", "reb", "ast", "blk", "stl")]
+        return 1 if sum(1 for c in categories if c >= 10) >= 2 else 0
     if stat == "fantasy_score":
         return (
             getattr(game, "pts", 0) * 1 +

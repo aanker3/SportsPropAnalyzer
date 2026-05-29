@@ -45,8 +45,9 @@ To add a new source:
 
 ### 2. Deployment blockers
 - [x] Replace hardcoded `http://127.0.0.1:8000` with `VITE_API_URL` env var — set in `.env.local` for dev, Vercel dashboard for prod
-- [ ] Set up Railway (backend + PostgreSQL) and Vercel (frontend) — Story 13 in JIRA
-- [ ] Confirm `DATABASE_URL` env var is wired through in production
+- [x] `Procfile`, `railway.json`, and `vercel.json` are committed and ready
+- [ ] Create Railway project, add PostgreSQL plugin, set `DATABASE_URL` env var, deploy from GitHub
+- [ ] Create Vercel project pointing at this repo, set `VITE_API_URL=<railway-url>` env var, deploy
 
 ### 3. Pipeline reliability
 - [ ] No-downtime refresh: fetch new data into staging tables, then swap — currently the DB is empty for ~30s mid-run (Stories 10/11 in JIRA)
