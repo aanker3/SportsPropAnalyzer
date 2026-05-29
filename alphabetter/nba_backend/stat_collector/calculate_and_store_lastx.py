@@ -94,27 +94,6 @@ def last_percent(hits: list[bool]) -> tuple[float, str]:
     return round(max_percent * 100, 2), f"{best_hit_count}/{best_total}"
 
 
-def worst_percent(hits: list[bool]) -> tuple[float, str]:
-    """Worst hit rate in any expanding window from the most recent game (min 2 games)."""
-    if len(hits) < 2:
-        return 0.0, "0/0"
-    min_percent = 1.0
-    worst_hit_count = 0
-    worst_total = 0
-    hit_count = 0
-
-    for end in range(len(hits)):
-        hit_count += hits[end]
-        total = end + 1
-        if total < 2:
-            continue
-        percent = hit_count / total
-        if percent <= min_percent:
-            min_percent = percent
-            worst_hit_count = hit_count
-            worst_total = total
-
-    return round(min_percent * 100, 2), f"{worst_hit_count}/{worst_total}"
 
 def calculate_hit_rates(session: Session, prop: PrizePicksProp):
     """Calculate hit rates for a given PrizePicksProp object."""
@@ -148,7 +127,6 @@ def calculate_hit_rates(session: Session, prop: PrizePicksProp):
         if game.min and game.min > 0
     ]
     last_percent_rate, last_percent_total = last_percent(games)
-    worst_percent_rate, worst_percent_total = worst_percent(games)
 
     return {
         "player_id": player_id,
@@ -160,8 +138,6 @@ def calculate_hit_rates(session: Session, prop: PrizePicksProp):
         "l20_hit_rate": l20_hit_rate,
         "last_percent_total": last_percent_total,
         "last_percent_rate": last_percent_rate / 100,
-        "worst_percent_total": worst_percent_total,
-        "worst_percent_rate": worst_percent_rate / 100,
     }
 
 def store_calculated_stats(session: Session, stats: dict):
@@ -176,9 +152,7 @@ def store_calculated_stats(session: Session, stats: dict):
         existing_record.l20_hit_rate = stats["l20_hit_rate"]
         existing_record.last_percent_total = stats["last_percent_total"]
         existing_record.last_percent_rate = stats["last_percent_rate"]
-        existing_record.worst_percent_total = stats["worst_percent_total"]
-        existing_record.worst_percent_rate = stats["worst_percent_rate"]
-        print(f"🔄 Updating {existing_record.player_name} prop {existing_record.prop_id}: best={existing_record.last_percent_total} worst={existing_record.worst_percent_total}")
+        print(f"🔄 Updating {existing_record.player_name} prop {existing_record.prop_id}: best={existing_record.last_percent_total}")
     else:
         player_stats_calculated = PlayerStatsCalculated(
             player_id=stats["player_id"],
@@ -190,11 +164,9 @@ def store_calculated_stats(session: Session, stats: dict):
             l20_hit_rate=stats["l20_hit_rate"],
             last_percent_total=stats["last_percent_total"],
             last_percent_rate=stats["last_percent_rate"],
-            worst_percent_total=stats["worst_percent_total"],
-            worst_percent_rate=stats["worst_percent_rate"],
         )
         session.add(player_stats_calculated)
-        print(f"➡️ Adding {player_stats_calculated.player_name} prop {player_stats_calculated.prop_id}: best={player_stats_calculated.last_percent_total} worst={player_stats_calculated.worst_percent_total}")
+        print(f"➡️ Adding {player_stats_calculated.player_name} prop {player_stats_calculated.prop_id}: best={player_stats_calculated.last_percent_total}")
 
     # Commit the changes to the database
     session.commit()
@@ -231,7 +203,6 @@ def calculate_mlb_hit_rates(session: Session, prop: PrizePicksProp):
 
     hit_bools = [_is_hit(_get_mlb_stat_value(g, stat), prop.target, prop.over_under) for g in active_games]
     rate, fraction = last_percent(hit_bools)
-    wrate, wfraction = worst_percent(hit_bools)
 
     return {
         "player_id": prop.player_id,
@@ -243,8 +214,6 @@ def calculate_mlb_hit_rates(session: Session, prop: PrizePicksProp):
         "l20_hit_rate": l20,
         "last_percent_total": fraction,
         "last_percent_rate": rate / 100,
-        "worst_percent_total": wfraction,
-        "worst_percent_rate": wrate / 100,
     }
 
 
@@ -284,7 +253,6 @@ def calculate_and_store_stats_bulk(session: Session, props: list):
             if log.min and log.min > 0
         ]
         last_percent_rate, last_percent_total = last_percent(hits)
-        worst_percent_rate, worst_percent_total = worst_percent(hits)
 
         stats = {
             "player_id": prop.player_id,
@@ -295,8 +263,6 @@ def calculate_and_store_stats_bulk(session: Session, props: list):
             "l20_hit_rate": l20_hit_rate,
             "last_percent_total": last_percent_total,
             "last_percent_rate": last_percent_rate / 100,
-            "worst_percent_total": worst_percent_total,
-            "worst_percent_rate": worst_percent_rate / 100,
         }
         stats_list.append(stats)
 
@@ -309,8 +275,6 @@ def calculate_and_store_stats_bulk(session: Session, props: list):
             record.l20_hit_rate = stats["l20_hit_rate"]
             record.last_percent_total = stats["last_percent_total"]
             record.last_percent_rate = stats["last_percent_rate"]
-            record.worst_percent_total = stats["worst_percent_total"]
-            record.worst_percent_rate = stats["worst_percent_rate"]
         else:
             player_stats_calculated = PlayerStatsCalculated(
                 player_id=stats["player_id"],
@@ -321,8 +285,6 @@ def calculate_and_store_stats_bulk(session: Session, props: list):
                 l20_hit_rate=stats["l20_hit_rate"],
                 last_percent_total=stats["last_percent_total"],
                 last_percent_rate=stats["last_percent_rate"],
-                worst_percent_total=stats["worst_percent_total"],
-                worst_percent_rate=stats["worst_percent_rate"],
             )
             session.add(player_stats_calculated)
 

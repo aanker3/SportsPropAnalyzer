@@ -67,6 +67,7 @@ PrizePicks is the only prop source today. The goal is to support additional book
 - [ ] Player news / injury feed (Story 15 in JIRA)
 - [ ] Defensive matchup rankings — "Spurs give up most 3s" etc. (Story 9 in JIRA)
 - [ ] Refactor `fetch_and_calculate_all.py` into an abstract `SportPipeline` base class — `run_nba_pipeline()` and `run_mlb_pipeline()` are structurally identical. Worth doing when a third sport is added.
+- [ ] Worst % column — mirror of Best %, finds the minimum hit rate in any expanding window ≥ 2 games from the most recent game. Backend: add `worst_percent()` function (already written, reverted), store `worst_percent_rate`/`worst_percent_total` in `PlayerStatsCalculated`. Frontend: red sortable column in the props table + badge in chart modal.
 
 ---
 
