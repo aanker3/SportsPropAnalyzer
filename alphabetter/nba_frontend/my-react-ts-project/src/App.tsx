@@ -7,12 +7,12 @@ const SPORT_LINKS = [
   { to: '/mlb', label: 'MLB', icon: '⚾' },
 ];
 
-const PAGE_LINKS = [
-  { to: '/players', label: 'Players' },
-];
-
 function NavBar() {
   const { pathname } = useLocation();
+  const activeSport = pathname.startsWith('/mlb') ? '/mlb' : '/nba';
+  const isPropsActive = pathname === '/nba' || pathname === '/mlb';
+  const isPlayersActive = pathname === '/players';
+
   return (
     <header className="sticky top-0 z-50 border-b border-gray-800 bg-gray-950/90 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-screen-xl items-center gap-6 px-4">
@@ -20,7 +20,7 @@ function NavBar() {
           <span className="text-blue-400">●</span> AlphaBetter
         </Link>
 
-        {/* Sport tabs */}
+        {/* Sport switcher */}
         <div className="flex gap-1 rounded-lg border border-gray-800 bg-gray-900/60 p-1">
           {SPORT_LINKS.map(({ to, label, icon }) => (
             <Link
@@ -40,19 +40,22 @@ function NavBar() {
 
         {/* Page nav */}
         <nav className="flex gap-1 ml-2">
-          {PAGE_LINKS.map(({ to, label }) => (
-            <Link
-              key={to}
-              to={to}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                pathname === to
-                  ? 'bg-gray-700 text-white'
-                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
-              }`}
-            >
-              {label}
-            </Link>
-          ))}
+          <Link
+            to={activeSport}
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              isPropsActive ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+            }`}
+          >
+            Props
+          </Link>
+          <Link
+            to="/players"
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              isPlayersActive ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+            }`}
+          >
+            Players
+          </Link>
         </nav>
       </div>
     </header>

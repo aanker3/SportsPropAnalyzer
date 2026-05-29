@@ -151,3 +151,5 @@ class PlayerStatsCalculated(Base):
     l20_hit_rate = Column(Float)
     last_percent_total = Column(String)
     last_percent_rate = Column(Float)
+    worst_percent_total = Column(String)
+    worst_percent_rate = Column(Float)

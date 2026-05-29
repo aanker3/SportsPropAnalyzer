@@ -29,6 +29,8 @@ interface Stat {
   l20_hit_rate: number;
   last_percent_rate: number;
   last_percent_total: string;
+  worst_percent_rate: number;
+  worst_percent_total: string;
 }
 
 interface GameLog {
@@ -103,7 +105,7 @@ function PlayerAvatar({ playerId, name, sport }: { playerId: number; name: strin
   );
 }
 
-type SortKey = 'l5_hit_rate' | 'l10_hit_rate' | 'l20_hit_rate' | 'last_percent_rate';
+type SortKey = 'l5_hit_rate' | 'l10_hit_rate' | 'l20_hit_rate' | 'last_percent_rate' | 'worst_percent_rate';
 type TopTab = 'goblin' | 'demon' | 'std-over' | 'std-under';
 
 export default function PlayerProps({ sport }: { sport: 'NBA' | 'MLB' }) {
@@ -177,9 +179,11 @@ export default function PlayerProps({ sport }: { sport: 'NBA' | 'MLB' }) {
         const sa = stats[a.id]?.[sortKey] ?? 0;
         const sb = stats[b.id]?.[sortKey] ?? 0;
         if (sa !== sb) return sortDir === 'desc' ? sb - sa : sa - sb;
-        if (sortKey === 'last_percent_rate') {
-          const denomA = parseInt(stats[a.id]?.last_percent_total?.split('/')[1] ?? '0', 10);
-          const denomB = parseInt(stats[b.id]?.last_percent_total?.split('/')[1] ?? '0', 10);
+        const totalKey = sortKey === 'last_percent_rate' ? 'last_percent_total'
+          : sortKey === 'worst_percent_rate' ? 'worst_percent_total' : null;
+        if (totalKey) {
+          const denomA = parseInt(stats[a.id]?.[totalKey]?.split('/')[1] ?? '0', 10);
+          const denomB = parseInt(stats[b.id]?.[totalKey]?.split('/')[1] ?? '0', 10);
           return sortDir === 'desc' ? denomB - denomA : denomA - denomB;
         }
         return 0;
@@ -401,14 +405,14 @@ export default function PlayerProps({ sport }: { sport: 'NBA' | 'MLB' }) {
                 <th className="px-4 py-3 text-left">Stat</th>
                 <th className="px-4 py-3 text-center">Line</th>
                 <th className="px-4 py-3 text-center">Type</th>
-                {(['l5_hit_rate', 'l10_hit_rate', 'l20_hit_rate', 'last_percent_rate'] as SortKey[]).map((key, i) => (
+                {(['l5_hit_rate', 'l10_hit_rate', 'l20_hit_rate', 'last_percent_rate', 'worst_percent_rate'] as SortKey[]).map((key, i) => (
                   <th
                     key={key}
                     onClick={() => handleSort(key)}
-                    className="px-4 py-3 text-left min-w-[110px] cursor-pointer select-none hover:text-white transition-colors"
+                    className={`px-4 py-3 text-left min-w-[110px] cursor-pointer select-none hover:text-white transition-colors ${key === 'worst_percent_rate' ? 'text-red-500' : ''}`}
                   >
                     <span className="flex items-center gap-1">
-                      {['L5', 'L10', 'L20', 'Best %'][i]}
+                      {['L5', 'L10', 'L20', 'Best %', 'Worst %'][i]}
                       <span className="text-gray-600">{sortKey === key ? (sortDir === 'desc' ? '▼' : '▲') : '⇅'}</span>
                     </span>
                   </th>
@@ -449,9 +453,13 @@ export default function PlayerProps({ sport }: { sport: 'NBA' | 'MLB' }) {
                           <span className="font-mono text-xs text-gray-300">{s.last_percent_total}</span>
                           <span className="ml-1 text-xs text-gray-500">({Math.round(s.last_percent_rate * 100)}%)</span>
                         </td>
+                        <td className="px-4 py-2.5">
+                          <span className="font-mono text-xs text-red-400">{s.worst_percent_total}</span>
+                          <span className="ml-1 text-xs text-red-700">({Math.round((s.worst_percent_rate ?? 0) * 100)}%)</span>
+                        </td>
                       </>
                     ) : (
-                      <td colSpan={4} className="px-4 py-2.5 text-gray-700 text-center text-xs">—</td>
+                      <td colSpan={5} className="px-4 py-2.5 text-gray-700 text-center text-xs">—</td>
                     )}
                   </tr>
                 );
@@ -611,6 +619,10 @@ export default function PlayerProps({ sport }: { sport: 'NBA' | 'MLB' }) {
                 <div className={`rounded-lg border ${theme.accentBorder} bg-gray-800/40 px-3 py-1.5 text-center`}>
                   <p className="text-xs text-gray-500 uppercase">Best %</p>
                   <p className={`text-lg font-bold ${theme.accent}`}>{stats[selectedProp.id].last_percent_total}</p>
+                </div>
+                <div className="rounded-lg border border-red-900/60 bg-red-950/20 px-3 py-1.5 text-center">
+                  <p className="text-xs text-gray-500 uppercase">Worst %</p>
+                  <p className="text-lg font-bold text-red-400">{stats[selectedProp.id].worst_percent_total}</p>
                 </div>
               </div>
             )}
