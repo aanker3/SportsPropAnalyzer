@@ -62,6 +62,7 @@ To add a new source:
 ### 5. Nice-to-haves
 - [ ] Player news / injury feed (Story 15 in JIRA)
 - [ ] Defensive matchup rankings — "Spurs give up most 3s" etc. (Story 9 in JIRA)
+- [ ] Refactor `fetch_and_calculate_all.py` into an abstract `SportPipeline` base class — `run_nba_pipeline()` and `run_mlb_pipeline()` are structurally identical; a base `run()` loop with 6 sport-specific abstract methods would eliminate the duplication. Worth doing when a third sport (NHL, NFL) is added.
 
 ---
 

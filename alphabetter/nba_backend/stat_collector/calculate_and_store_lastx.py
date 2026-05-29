@@ -2,7 +2,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from alphabetter.nba_backend.database import DATABASE_URL, Base
-from alphabetter.nba_backend.models import PlayerGameLog, PlayerStatsCalculated, PrizePicksProp
+from alphabetter.nba_backend.models import PlayerGameLog, PlayerStatsCalculated, PrizePicksProp, MLBPlayerGameLog
+from alphabetter.nba_backend.stat_collector.mlb_stat_mapping import MLB_STAT_MAPPING, _get_mlb_stat_value, _is_mlb_active
 import argparse
 
 STAT_MAPPING = {
@@ -139,6 +140,7 @@ def calculate_hit_rates(session: Session, prop: PrizePicksProp):
         "player_id": player_id,
         "player_name": player_name,
         "prop_id": prop.id,
+        "sport": "NBA",
         "l5_hit_rate": l5_hit_rate,
         "l10_hit_rate": l10_hit_rate,
         "l20_hit_rate": l20_hit_rate,
@@ -174,6 +176,7 @@ def store_calculated_stats(session: Session, stats: dict):
             player_id=stats["player_id"],
             player_name=stats["player_name"],
             prop_id=stats["prop_id"],
+            sport=stats.get("sport", "NBA"),
             l5_hit_rate=stats["l5_hit_rate"],
             l10_hit_rate=stats["l10_hit_rate"],
             l20_hit_rate=stats["l20_hit_rate"],
@@ -194,6 +197,51 @@ def store_calculated_stats(session: Session, stats: dict):
     # Commit the changes to the database
     session.commit()
     print("✅ Stats committed to database.")
+
+def calculate_mlb_hit_rates(session: Session, prop: PrizePicksProp):
+    """Calculate hit rates for a MLB PrizePicksProp using MLBPlayerGameLog."""
+    stat = MLB_STAT_MAPPING.get(prop.stat)
+    if stat is None:
+        print(f"No MLB stat mapping for '{prop.stat}', skipping.")
+        return None
+
+    player_games = session.query(MLBPlayerGameLog).filter(
+        MLBPlayerGameLog.player_id == prop.player_id
+    ).order_by(MLBPlayerGameLog.game_date.desc()).all()
+
+    if not player_games:
+        print(f"No MLB games found for {prop.player_name}")
+        return None
+
+    active_games = [g for g in player_games if _is_mlb_active(g)]
+    if not active_games:
+        return None
+
+    def _calc_rate(games):
+        if not games:
+            return 0.0
+        hits = sum(1 for g in games if _is_hit(_get_mlb_stat_value(g, stat), prop.target, prop.over_under))
+        return hits / len(games)
+
+    l5 = _calc_rate(active_games[:5])
+    l10 = _calc_rate(active_games[:10])
+    l20 = _calc_rate(active_games[:20])
+
+    hit_bools = [_is_hit(_get_mlb_stat_value(g, stat), prop.target, prop.over_under) for g in active_games]
+    rate, fraction = last_percent(hit_bools)
+
+    return {
+        "player_id": prop.player_id,
+        "player_name": prop.player_name,
+        "prop_id": prop.id,
+        "sport": "MLB",
+        "l5_hit_rate": l5,
+        "l10_hit_rate": l10,
+        "l20_hit_rate": l20,
+        "last_percent_total": fraction,
+        "last_percent_rate": rate / 100,
+    }
+
 
 def calculate_and_store_stats_bulk(session: Session, props: list):
     """Batch calculate and store stats for a list of props."""    

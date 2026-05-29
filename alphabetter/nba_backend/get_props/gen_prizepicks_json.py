@@ -3,9 +3,9 @@ import json
 import requests
 from pathlib import Path
 
-def gen_prizepicks_json():
+def gen_prizepicks_json(league_id: int = 7, filename: str = "prizepicks_props.json"):
     script_dir = Path(__file__).parent
-    file_name = script_dir / "prizepicks_props.json"
+    file_name = script_dir / filename
 
     if file_name.exists():
         try:
@@ -16,8 +16,7 @@ def gen_prizepicks_json():
     session = requests.Session()
     session.verify = True
 
-    # NOTE: league_id=7 = NBA, league_id=8 = NFL
-    url = "https://api.prizepicks.com/projections?league_id=7&per_page=250&single_stat=true"
+    url = f"https://api.prizepicks.com/projections?league_id={league_id}&per_page=250&single_stat=true"
 
     headers = {
         "Host": "api.prizepicks.com",
@@ -53,6 +52,11 @@ def gen_prizepicks_json():
         raise RuntimeError(f"Failed to write props file: {e}") from e
 
     print(f"done - file saved at: {file_name}")
+
+
+def gen_mlb_prizepicks_json():
+    gen_prizepicks_json(league_id=2, filename="prizepicks_props_mlb.json")
+
 
 if __name__ == "__main__":
     gen_prizepicks_json()

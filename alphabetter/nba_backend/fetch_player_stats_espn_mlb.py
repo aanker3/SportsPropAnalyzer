@@ -37,12 +37,18 @@ def build_mlb_player_map() -> dict[str, dict]:
     for team_id in team_ids:
         roster_resp = requests.get(ESPN_ROSTER_URL.format(team_id=team_id), headers=HEADERS, timeout=15)
         roster_resp.raise_for_status()
-        for athlete in roster_resp.json().get("athletes", []):
-            position = athlete.get("position", {}).get("abbreviation", "")
-            player_map[athlete["fullName"]] = {
-                "id": athlete["id"],
-                "is_pitcher": position in PITCHER_POSITIONS,
-            }
+        # MLB roster is grouped by position group: [{position, items: [player, ...]}, ...]
+        for group in roster_resp.json().get("athletes", []):
+            players = group.get("items", [group]) if "items" in group else [group]
+            for athlete in players:
+                if not athlete.get("id") or not athlete.get("fullName"):
+                    continue
+                pos = athlete.get("position", {})
+                position = pos.get("abbreviation", "") if isinstance(pos, dict) else (pos if isinstance(pos, str) else "")
+                player_map[athlete["fullName"]] = {
+                    "id": athlete["id"],
+                    "is_pitcher": position in PITCHER_POSITIONS,
+                }
         time.sleep(0.2)
 
     print(f"MLB ESPN player map built: {len(player_map)} players across {len(team_ids)} teams")

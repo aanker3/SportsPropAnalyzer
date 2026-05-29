@@ -18,6 +18,7 @@ interface Prop {
   target: number;
   over_under: string;
   odds_type: string;
+  sport?: string;
 }
 
 interface Stat {
@@ -59,7 +60,7 @@ function RateBar({ rate }: { rate: number }) {
 
 type SortKey = 'l5_hit_rate' | 'l10_hit_rate' | 'l20_hit_rate' | 'last_percent_rate';
 
-export default function PlayerProps() {
+export default function PlayerProps({ sport }: { sport: 'NBA' | 'MLB' }) {
   const [props, setProps] = useState<Prop[]>([]);
   const [stats, setStats] = useState<Record<number, Stat>>({});
   const [selectedProp, setSelectedProp] = useState<Prop | null>(null);
@@ -206,14 +207,15 @@ export default function PlayerProps() {
       .filter(p => {
         const s = search.toLowerCase();
         return (p.player_name.toLowerCase().includes(s) || p.stat.toLowerCase().includes(s)) &&
-          (oddsFilter === 'all' || p.odds_type === oddsFilter);
+          (oddsFilter === 'all' || p.odds_type === oddsFilter) &&
+          (p.sport ?? 'NBA') === sport;
       })
       .sort((a, b) => {
         const sa = stats[a.id]?.[sortKey] ?? 0;
         const sb = stats[b.id]?.[sortKey] ?? 0;
         return sortDir === 'desc' ? sb - sa : sa - sb;
       });
-  }, [props, stats, search, oddsFilter, sortKey, sortDir]);
+  }, [props, stats, search, oddsFilter, sortKey, sortDir, sport]);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(d => d === 'desc' ? 'asc' : 'desc');
@@ -221,13 +223,13 @@ export default function PlayerProps() {
   };
 
   const summaryStats = useMemo(() => {
-    const vals = Object.values(stats);
-    if (!vals.length) return null;
-    const best = Math.max(...vals.map(s => s.l10_hit_rate));
-    const avg = vals.reduce((a, s) => a + s.l10_hit_rate, 0) / vals.length;
-    const hot = vals.filter(s => s.l10_hit_rate >= 0.7).length;
-    return { total: props.length, best: Math.round(best * 100), avg: Math.round(avg * 100), hot };
-  }, [props, stats]);
+    const filteredStats = filtered.map(p => stats[p.id]).filter(Boolean);
+    if (!filteredStats.length) return null;
+    const best = Math.max(...filteredStats.map(s => s.l10_hit_rate));
+    const avg = filteredStats.reduce((a, s) => a + s.l10_hit_rate, 0) / filteredStats.length;
+    const hot = filteredStats.filter(s => s.l10_hit_rate >= 0.7).length;
+    return { total: filtered.length, best: Math.round(best * 100), avg: Math.round(avg * 100), hot };
+  }, [filtered, stats]);
 
   return (
     <div className="space-y-4">

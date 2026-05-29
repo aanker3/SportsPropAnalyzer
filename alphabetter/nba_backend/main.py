@@ -1,14 +1,14 @@
+from typing import Optional
 from fastapi import FastAPI, Depends, BackgroundTasks, Path, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
 from alphabetter.nba_backend.database import get_db
-from alphabetter.nba_backend.models import PlayerGameLog, PrizePicksProp, PlayerStatsCalculated
+from alphabetter.nba_backend.models import PlayerGameLog, PrizePicksProp, PlayerStatsCalculated, MLBPlayerGameLog
 from alphabetter.nba_backend.stat_collector.calculate_and_store_lastx import calculate_hit_rates, store_calculated_stats, STAT_MAPPING, _get_stat_value
+from alphabetter.nba_backend.stat_collector.mlb_stat_mapping import MLB_STAT_MAPPING, _get_mlb_stat_value, _is_mlb_active
 from alphabetter.nba_backend.player_utils import get_player_id
 from alphabetter.nba_backend.crud.player_gamelogs import fetch_player_gamelogs
-from alphabetter.nba_backend.fetch_and_calculate_all import fetch_and_calculate_and_store
-import requests
+from alphabetter.nba_backend.fetch_and_calculate_all import fetch_and_calculate_and_store, run_mlb_pipeline
 import os
 
 app = FastAPI()
@@ -46,13 +46,21 @@ def run_pipeline_sync():
     prop_num = fetch_and_calculate_and_store()
     return {"prop_num": prop_num}
 
+@app.post("/api/run_mlb_pipeline")
+def run_mlb_pipeline_endpoint():
+    prop_num = run_mlb_pipeline()
+    return {"prop_num": prop_num}
+
 @app.get("/")
 def read_root():
     return {"status": "ok"}
 
 @app.get("/api/props")
-async def get_props(db: Session = Depends(get_db)):
-    props = db.query(PrizePicksProp).all()
+async def get_props(sport: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(PrizePicksProp)
+    if sport:
+        query = query.filter(PrizePicksProp.sport == sport.upper())
+    props = query.all()
     return {"props": props}
 
 @app.get("/api/player-stats-calculated")
@@ -70,38 +78,51 @@ async def get_player_last_x(
     num_games: int = Path(..., gt=0, le=200),
     db: Session = Depends(get_db)
 ):
-
     prop = db.query(PrizePicksProp).filter(PrizePicksProp.id == prop_id).first()
     if not prop:
         return {"message": f"Prop with id '{prop_id}' not found."}
 
     player_id = prop.player_id
-
-    stat_type = STAT_MAPPING.get(prop.stat)
-    if not stat_type or stat_type == "fantasy_score":
-        return {"message": f"Stat '{prop.stat}' not supported in game log view."}
-
-    game_logs = db.query(PlayerGameLog).filter(
-        PlayerGameLog.player_id == player_id
-    ).order_by(PlayerGameLog.game_date.desc()).limit(num_games).all()
-
-    if not game_logs:
-        return {"message": "No game logs found for the player."}
-
     result_info = []
-    for game_log in game_logs:
-        game_stat = _get_stat_value(game_log, stat_type)
 
-        game_minutes = getattr(game_log, "min")
-        game_date = getattr(game_log, "game_date")
-        game_matchup = getattr(game_log, "matchup")
+    if prop.sport == "MLB":
+        stat_type = MLB_STAT_MAPPING.get(prop.stat)
+        if not stat_type:
+            return {"message": f"Stat '{prop.stat}' not supported in game log view."}
 
-        result_info.append({
-            "game_date": game_date,
-            "matchup": game_matchup,
-            "game_minutes": game_minutes,
-            "stat_value": game_stat
-        })
+        game_logs = db.query(MLBPlayerGameLog).filter(
+            MLBPlayerGameLog.player_id == player_id
+        ).order_by(MLBPlayerGameLog.game_date.desc()).limit(num_games).all()
+
+        if not game_logs:
+            return {"message": "No game logs found for the player."}
+
+        for game_log in game_logs:
+            result_info.append({
+                "game_date": game_log.game_date,
+                "matchup": game_log.matchup,
+                "game_minutes": 1 if _is_mlb_active(game_log) else 0,
+                "stat_value": _get_mlb_stat_value(game_log, stat_type),
+            })
+    else:
+        stat_type = STAT_MAPPING.get(prop.stat)
+        if not stat_type or stat_type == "fantasy_score":
+            return {"message": f"Stat '{prop.stat}' not supported in game log view."}
+
+        game_logs = db.query(PlayerGameLog).filter(
+            PlayerGameLog.player_id == player_id
+        ).order_by(PlayerGameLog.game_date.desc()).limit(num_games).all()
+
+        if not game_logs:
+            return {"message": "No game logs found for the player."}
+
+        for game_log in game_logs:
+            result_info.append({
+                "game_date": getattr(game_log, "game_date"),
+                "matchup": getattr(game_log, "matchup"),
+                "game_minutes": getattr(game_log, "min"),
+                "stat_value": _get_stat_value(game_log, stat_type),
+            })
 
     return {
         "player_id": player_id,
