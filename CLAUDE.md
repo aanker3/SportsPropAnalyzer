@@ -36,8 +36,6 @@ To add a new source:
 
 ---
 
-## Tech Stack
-
 ## Short-Term Goals (priority order)
 
 ### 1. Data quality
@@ -46,8 +44,10 @@ To add a new source:
 ### 2. Deployment blockers
 - [x] Replace hardcoded `http://127.0.0.1:8000` with `VITE_API_URL` env var — set in `.env.local` for dev, Vercel dashboard for prod
 - [x] `Procfile`, `railway.json`, and `vercel.json` are committed and ready
+- [x] Security blockers fixed (CORS, hardcoded credentials, debug endpoints removed)
 - [ ] Create Railway project, add PostgreSQL plugin, set `DATABASE_URL` env var, deploy from GitHub
 - [ ] Create Vercel project pointing at this repo, set `VITE_API_URL=<railway-url>` env var, deploy
+- [ ] Set `ALLOWED_ORIGINS=<vercel-url>` in Railway env vars after Vercel URL is known
 
 ### 3. Pipeline reliability
 - [ ] No-downtime refresh: fetch new data into staging tables, then swap — currently the DB is empty for ~30s mid-run (Stories 10/11 in JIRA)
@@ -68,10 +68,23 @@ To add a new source:
 ## Tech Stack
 
 - **Backend**: Python 3.10+, FastAPI, SQLAlchemy ORM, PostgreSQL
-- **Frontend**: React 19 + TypeScript, Vite, React Router, Axios, Chart.js
+- **Frontend**: React 19 + TypeScript, Vite, React Router, Axios, Chart.js, Tailwind CSS v4
 - **Prop fetching**: Python (`gen_prizepicks_json.py`) hitting the PrizePicks public API
 - **Stats source**: ESPN undocumented API (`fetch_player_stats_espn.py`) — replaced NBA API which became unreachable
 - **Dependency management**: Poetry (backend), npm (frontend)
+
+## Environment Variables
+
+### Backend
+| Variable | Where to set | Description |
+|----------|-------------|-------------|
+| `DATABASE_URL` | Railway dashboard (auto-set by PostgreSQL plugin) | PostgreSQL connection string |
+| `ALLOWED_ORIGINS` | Railway dashboard | Comma-separated Vercel URL(s) for CORS. Defaults to `*` if unset (only use `*` locally). |
+
+### Frontend
+| Variable | Where to set | Description |
+|----------|-------------|-------------|
+| `VITE_API_URL` | `.env.local` for dev, Vercel dashboard for prod | Backend URL. Defaults to `http://127.0.0.1:8000` if unset. |
 
 ## Commands
 
@@ -129,7 +142,7 @@ ESPN API (rosters + gamelogs) → fetch_player_stats_espn.py → PlayerGameLog t
 |------|---------|
 | `main.py` | FastAPI app, all route definitions |
 | `models.py` | SQLAlchemy ORM models |
-| `database.py` | DB engine/session; `DATABASE_URL` env var |
+| `database.py` | DB engine/session; reads `DATABASE_URL` env var, falls back to local dev URL |
 | `fetch_and_calculate_all.py` | **Main pipeline**: clears DB, fetches props + ESPN stats, computes hit rates |
 | `fetch_player_stats_espn.py` | **Active stats source**: builds name→ESPN ID map from 30 team rosters; fetches regular season + playoff game logs |
 | `fetch_and_store_prop_data.py` | Older prop-loading utility (not used by main pipeline) |
@@ -146,7 +159,7 @@ ESPN API (rosters + gamelogs) → fetch_player_stats_espn.py → PlayerGameLog t
 | Table | Model | Purpose |
 |-------|-------|---------|
 | `prize_picks_props` | `PrizePicksProp` | One row per prop (player × stat × line × odds_type) |
-| `player_game_log` | `PlayerGameLog` | One row per player per game; all box score stats |
+| `player_game_log` | `PlayerGameLog` | One row per player per game; all box score stats including `pf` |
 | `player_stats` | `PlayerStats` | One row per player; summary (PPG/APG/RPG) |
 | `player_stats_calculated` | `PlayerStatsCalculated` | One row per prop; L5/L10/L20/last_percent |
 | `team_info` | `TeamInfo` | Team game logs (populated by old NBA API path, currently unused) |
@@ -162,18 +175,15 @@ ESPN API (rosters + gamelogs) → fetch_player_stats_espn.py → PlayerGameLog t
 | `GET` | `/api/player/{player_name}` | Look up player ID by name |
 | `POST` | `/api/fetch_and_calculate_all` | Run full pipeline synchronously |
 | `POST` | `/api/fetch_and_calculate_all_bg` | Run full pipeline as background task |
-| `GET` | `/api/ping_stats_nba` | Health check for stats.nba.com (currently broken) |
-| `GET` | `/api/test_real_stats` | Debug endpoint for NBA API |
-| `GET` | `/api/test_real_stats_bbref` | Debug endpoint for Basketball Reference |
 
 ### Frontend Pages (`alphabetter/nba_frontend/my-react-ts-project/src/`)
 
 | File | Route | Description |
 |------|-------|-------------|
-| `PlayerProps.tsx` | `/player-props` | **Main page**: sortable prop table + bar chart modal |
-| `PlayerGameLogs.tsx` | `/player-gamelogs` | Per-player game log table (all stats) |
-| `PlayerStats.tsx` | `/player-stats` | Prop-by-ID lookup with bar chart |
-| `PlayerId.tsx` | `/player-id` | Player ID lookup utility |
+| `PlayerProps.tsx` | `/player-props` | **Main page**: sortable prop table with hit rate bars, filter/search, bar chart modal with season avg |
+| `Players.tsx` | `/players` | Player lookup: autocomplete search, active props table, season averages, full game log |
+| `PlayerStats.tsx` | `/player-stats` | Prop-by-ID lookup with bar chart and Hit/Miss table |
+| `api.ts` | — | Central API URL config — reads `VITE_API_URL`, falls back to localhost |
 
 ## Key Business Logic
 
@@ -184,19 +194,26 @@ Finds the best hit rate in an expanding window starting at game 0 (most recent).
 - Skip 100% windows of ≤5 games **unless** followed by 2 consecutive misses
 - Returns both the rate and a fraction string (e.g., `"24/25"`)
 
-The game list is sorted **newest first** (`.order_by(game_date.desc())`), so index 0 = most recent game.
+The game list is sorted **newest first** (`.order_by(game_date.desc())`), so index 0 = most recent game. DNP rows (min == 0) are excluded.
 
 ### `STAT_MAPPING`
 
-Maps PrizePicks stat names to `PlayerGameLog` column names. Combined stats are lists; at query time they're summed:
+Maps PrizePicks stat names to `PlayerGameLog` column names. Combined stats are lists; computed stats use special sentinel strings:
 
 ```python
-"Pts+Rebs+Asts": ["pts", "reb", "ast"]   # sum of three columns
+"Pts+Rebs+Asts": ["pts", "reb", "ast"]    # summed
+"Two Pointers Made": "2pm"                 # computed: fgm - fg3m
+"Two Pointers Attempted": "2pa"            # computed: fga - fg3a
+"Double-Double": "double_double"           # computed: 1 if ≥10 in 2+ of pts/reb/ast/blk/stl
 "Fantasy Score": "fantasy_score"           # computed: pts + reb*1.2 + ast*1.5 + blk*3 + stl*3 - tov
 ```
 
-**Unmapped stats** (fall back to `"pts"`, so calculations are wrong for these):
-`Free Throws Attempted`, `Personal Fouls`, `Two Pointers Made`, `Two Pointers Attempted`, `Points - 1st 3 Minutes`
+### `UNSUPPORTED_STATS`
+
+Props skipped entirely in the pipeline (can't be computed from ESPN game logs):
+- `Fantasy Score`, `Dunks`
+- `Points/Assists/Rebounds - 1st 3 Minutes` — no per-period splits in ESPN data
+- `Offensive Rebounds`, `Defensive Rebounds` — ESPN only provides total REB
 
 ### `OddsType` enum
 
@@ -215,67 +232,62 @@ ESPN returns stats as an ordered array matching `data["labels"]`:
 
 ### Over/Under hit logic
 
-- **Over**: `stat_value >= target` counts as a hit
-- **Under**: `stat_value < target` counts as a hit (exact match = miss for under)
+- **Over**: `stat_value >= target` counts as a hit (exact match = hit)
+- **Under**: `stat_value <= target` counts as a hit (exact match = hit)
+
+Both directions treat an exact line as a hit (push).
+
+---
+
+## Deployment
+
+### Railway (backend + database)
+1. Create a new Railway project, connect this GitHub repo
+2. Add the **PostgreSQL** plugin — Railway auto-sets `DATABASE_URL`
+3. Add env var: `ALLOWED_ORIGINS=https://your-vercel-app.vercel.app`
+4. Deploy — Railway uses `railway.json` and `Procfile` automatically
+
+### Vercel (frontend)
+1. Create a new Vercel project, connect this GitHub repo
+2. Vercel reads `vercel.json` at the root — it points at the frontend subdirectory automatically
+3. Add env var: `VITE_API_URL=https://your-railway-app.railway.app`
+4. Deploy
+
+### Local dev
+- Backend: `http://127.0.0.1:8000` (no env vars needed, uses local Postgres fallback)
+- Frontend: reads `VITE_API_URL` from `.env.local` (gitignored); `.env.example` shows the format
 
 ---
 
 ## Known Bugs
 
-### High Priority
-
-**1. `calculate_and_store_stats_bulk` always uses `log.pts` for `last_percent`**
-- File: `stat_collector/calculate_and_store_lastx.py:229`
-- The hit list hardcodes `log.pts` instead of using the actual prop's stat. Any bulk recalculation via this function produces wrong `last_percent` for non-points props.
-- The main pipeline uses `calculate_hit_rates` (per-prop, correct) so this only affects the unused bulk path.
-
-**2. CLI `main()` passes `prop.id` instead of `prop` object**
-- File: `stat_collector/calculate_and_store_lastx.py:305`
-- `calculate_hit_rates(session, prop.id)` — should be `calculate_hit_rates(session, prop)`. Crashes if you run `python -m alphabetter.nba_backend.stat_collector.calculate_and_store_lastx` in batch mode.
-
-**3. L5/L10/L20 include DNP game rows; `last_percent` does not**
-- File: `stat_collector/calculate_and_store_lastx.py:112-114` vs `:134`
-- `_calc_hit_rate` has no `game.min > 0` guard, so it includes rows where the player had 0 minutes (team schedule rows where the player was inactive). `last_percent` filters these out. This inflates denominators and deflates L5/L10/L20 hit rates.
-
-**4. `gen_prizepicks_json.py` calls `sys.exit(1)` on failure**
-- File: `get_props/gen_prizepicks_json.py:18,51,65`
-- Crashes the entire pipeline process instead of raising an exception. If PrizePicks API is temporarily down, the whole pipeline dies rather than the error being caught by the caller.
-
 ### Medium Priority
 
-**5. `fetch_and_store_prop_data.py:store_prize_picks_props` still uses broken NBA API**
+**1. `POST /api/fetch_and_calculate_all` has no authentication**
+- File: `main.py`
+- Anyone with the backend URL can trigger a full data refresh. Fine pre-launch, but should have an API key or IP restriction before the app is widely shared.
+
+**2. Pipeline clears DB before refilling — ~30s downtime on refresh**
+- File: `fetch_and_calculate_all.py:delete_all_rows`
+- The DB is empty between the delete and the re-insert. Stories 10/11 in JIRA track the staging-table swap fix.
+
+**3. `fetch_and_store_prop_data.py:store_prize_picks_props` is dead code with broken NBA API call**
 - File: `fetch_and_store_prop_data.py:25`
-- Calls `get_player_id` from `common/nba_api_common.py` which hits `stats.nba.com` (unreachable). This function is dead code in the current pipeline but would break if called.
-
-**6. Frontend bar colors use strict `>` but hit rate uses `>=`**
-- File: `PlayerProps.tsx:73-76`
-- Bars are green if `value > target`, grey if `value == target`. But hit rates count `value >= target` as a hit for "over" props. A player who exactly hits the line appears grey (miss) visually but is counted as a hit in the stats.
-
-**7. `fetch_and_store_player_stats.py` season hardcoded to `'2024-25'`**
-- File: `fetch_and_store_player_stats.py:17,20`
-- Would need updating if the old NBA API path is ever restored. Currently irrelevant since ESPN is used.
+- Not called by the active pipeline but would crash if invoked.
 
 ### Low Priority
 
-**8. Unused import in `fetch_and_calculate_all.py`**
-- File: `fetch_and_calculate_all.py:12`
-- `from alphabetter.nba_backend.fetch_and_store_player_stats import store_player_stats` — `fetch_player_stats` is imported here but no longer needed; `store_player_stats` is the only one used.
+**4. `calculate_and_store_stats_bulk` is unused but has a bug**
+- File: `stat_collector/calculate_and_store_lastx.py`
+- The bulk recalculation path is not called by the active pipeline. If it were ever wired up, verify prop_stat is correctly threaded through.
 
-**9. `PlayerProps.tsx` slider max hardcoded to 30**
-- File: `PlayerProps.tsx:287`
-- Players may have fewer than 30 games (e.g., injury returns, rookies). No user-visible error occurs but the chart just shows fewer bars.
+**5. `PlayerProps.tsx` slider max is 82 but some players have fewer games**
+- File: `PlayerProps.tsx`
+- No error, chart just shows fewer bars than the slider suggests.
 
-**10. CORS fully open**
-- File: `main.py:17`
-- `allow_origins=["*"]` is fine locally but should be restricted to the frontend origin in production.
-
-**11. Two FastAPI route functions share the name `fetch_and_calculate_all`**
-- File: `main.py:31,38`
-- Python overwrites the first definition with the second at module scope. FastAPI registers both routes correctly at decoration time, so it works, but it's confusing and fragile.
-
-**12. `STAT_MAPPING` `TODO` comment in `main.py`**
-- File: `main.py:128`
-- `#TODO most of the right side is wrong...` — the stat_mapping in `main.py` duplicates the one in `calculate_and_store_lastx.py` and they should be kept in sync. Consider importing one from the other.
+**6. CORS defaults to `*` if `ALLOWED_ORIGINS` not set**
+- File: `main.py`
+- Fine locally, but remember to set `ALLOWED_ORIGINS` on Railway before going public.
 
 ---
 
@@ -285,6 +297,6 @@ ESPN returns stats as an ordered array matching `data["labels"]`:
 - **`stats.nba.com` is unreachable** from this machine. The active pipeline uses ESPN. `fetch_and_store_player_stats.py` is kept for reference but non-functional.
 - **ESPN API has no official docs** — endpoints used: `site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/{id}/roster` and `site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/{id}/gamelog`.
 - **PrizePicks only shows active/upcoming games** — in the off-season or between series, `/api/props` may return 0 props even after a successful pipeline run.
-- **`oreb` and `dreb` are always 0** in ESPN-sourced data (ESPN only reports total rebounds). Props for those stats would show 0% hit rate.
+- **`oreb` and `dreb` are always 0** in ESPN-sourced data (ESPN only reports total rebounds). These prop types are in `UNSUPPORTED_STATS` and are skipped.
 - `legacy_code/` and `Research/` are not part of the active app — ignore for debugging.
-- The database password `BigStink44` is in `database.py`. Use `DATABASE_URL` env var for production.
+- **Local DB password** is `BigStink44` in the `database.py` fallback. This never runs in production — Railway injects `DATABASE_URL` automatically.
