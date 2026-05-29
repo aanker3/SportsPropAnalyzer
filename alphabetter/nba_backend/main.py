@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, BackgroundTasks
+from fastapi import FastAPI, Depends, BackgroundTasks, Path, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
@@ -9,19 +9,28 @@ from alphabetter.nba_backend.player_utils import get_player_id
 from alphabetter.nba_backend.crud.player_gamelogs import fetch_player_gamelogs
 from alphabetter.nba_backend.fetch_and_calculate_all import fetch_and_calculate_and_store
 import requests
+import os
 
 app = FastAPI()
 
+# In production set ALLOWED_ORIGINS="https://your-vercel-app.vercel.app"
+# Multiple origins: comma-separated list
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "*")
+allowed_origins = [o.strip() for o in _raw_origins.split(",")] if _raw_origins != "*" else ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=allowed_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
 @app.get("/api/player-gamelogs/{player_name}")
-async def get_player_gamelogs(player_name: str, db: Session = Depends(get_db)):
+async def get_player_gamelogs(
+    player_name: str = Path(..., max_length=100),
+    db: Session = Depends(get_db)
+):
     game_logs = fetch_player_gamelogs(player_name, db)
     if game_logs is None:
         return {"message": f"Player '{player_name}' not found."}
@@ -36,63 +45,6 @@ def run_pipeline_background(background_tasks: BackgroundTasks):
 def run_pipeline_sync():
     prop_num = fetch_and_calculate_and_store()
     return {"prop_num": prop_num}
-
-@app.get("/api/test_real_stats")
-async def test_real_stats():
-    url = "https://stats.nba.com/stats/playergamelog?PlayerID=1631105&Season=2023-24&SeasonType=Regular+Season"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        "Referer": "https://www.nba.com/",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Origin": "https://www.nba.com",
-    }
-    try:
-        response = requests.get(url, headers=headers, timeout=120)
-        response.raise_for_status()
-        return {"status": "success", "content": response.json()}
-    except requests.exceptions.RequestException as e:
-        return {"status": "error", "error": str(e)}
-
-import pandas as pd
-
-@app.get("/api/test_real_stats_bbref")
-async def test_real_stats_bbref():
-    try:
-        url = "https://www.basketball-reference.com/players/g/garlada01/gamelog/2024"
-        tables = pd.read_html(url)
-        gamelog = tables[0].astype(object)  # Cast to avoid numpy float issues
-        gamelog = gamelog.replace({float('inf'): None, float('-inf'): None})
-        gamelog = gamelog.where(pd.notnull(gamelog), None)
-        return {
-            "status": "success",
-            "games": gamelog.head(5).to_dict(orient="records")
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "error": str(e)
-        }
-
-
-@app.get("/api/ping_stats_nba")
-async def ping_stats_nba():
-    """Ping stats.nba.com and return the result."""
-    url = "https://stats.nba.com"
-    try:
-        response = requests.get(url, timeout=10)  # Set a timeout of 10 seconds
-        response.raise_for_status()  # Raise an exception for HTTP errors
-        return {
-            "status": "success",
-            "status_code": response.status_code,
-            "headers": dict(response.headers),
-            "content": response.text[:500],  # Return the first 500 characters of the response
-        }
-    except requests.exceptions.RequestException as e:
-        return {
-            "status": "error",
-            "error": str(e),
-        }
 
 @app.get("/")
 def read_root():
@@ -113,7 +65,11 @@ async def get_player_id_endpoint(player_name: str, db: Session = Depends(get_db)
     return get_player_id(player_name, db)
 
 @app.get("/api/last_x/{prop_id}/{num_games}")
-async def get_player_last_x(prop_id: int, num_games: int, db: Session = Depends(get_db)):
+async def get_player_last_x(
+    prop_id: int = Path(..., gt=0),
+    num_games: int = Path(..., gt=0, le=200),
+    db: Session = Depends(get_db)
+):
 
     prop = db.query(PrizePicksProp).filter(PrizePicksProp.id == prop_id).first()
     if not prop:
