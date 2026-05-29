@@ -1,81 +1,95 @@
 # Claude Handoff Document
 
-## Current State (as of 2026-05-27)
+## Current Date: 2026-05-29
+## Branch: `frontend-redesign`
 
-### What was running
-- **Backend** (FastAPI): started with `PYTHONIOENCODING=utf-8 poetry run uvicorn alphabetter.nba_backend.main:app --host 127.0.0.1 --port 8000`
-- **Frontend** (React/Vite): started with `npm run dev` in `alphabetter/nba_frontend/my-react-ts-project/`, running at http://localhost:5173
-- **Data pipeline**: `PYTHONIOENCODING=utf-8 poetry run python -m alphabetter.nba_backend.fetch_and_calculate_all` was launched as a background task and is **still running** (may or may not be complete)
-
-### Pipeline status
-- The pipeline cleared the DB (confirmed 0 props via `/api/props` mid-run)
-- It was in the process of fetching fresh PrizePicks props + NBA player game logs and reinserting them
-- Before the pipeline ran, the DB had **92 props / 92 calculated stats**, with game logs up to **March 31, 2025**
-- To check if it's done: `curl http://127.0.0.1:8000/api/props` — if count > 0, it finished
-
-### Known issue: emoji encoding on Windows
-Running any pipeline script directly with `poetry run python` fails with a `UnicodeEncodeError` because Windows cp1252 can't encode emoji in print statements.
-**Fix**: always prefix with `PYTHONIOENCODING=utf-8`
-```bash
-PYTHONIOENCODING=utf-8 poetry run python -m alphabetter.nba_backend.fetch_and_calculate_all
-```
-
-### Key URLs
-- Frontend: http://localhost:5173
-- Backend root: http://127.0.0.1:8000
-- API docs (Swagger): http://127.0.0.1:8000/docs
-- Props: http://127.0.0.1:8000/api/props
-- Calculated stats: http://127.0.0.1:8000/api/player-stats-calculated
+All active work is on this branch. It's ahead of master with the full redesign, bug fixes, security hardening, and MLB foundation.
 
 ---
 
-## Project Summary
+## Servers
 
-**SportsPropAnalyzer** (`alphabetter` package) — NBA sports prop analysis tool. Fetches live PrizePicks props, pulls player game logs via the NBA API, and calculates historical hit rates to evaluate over/under bets.
-
-### Stack
-- Backend: Python 3.10+, FastAPI, SQLAlchemy, PostgreSQL
-- Frontend: React 19 + TypeScript, Vite, React Router, Axios
-- Dependency mgmt: Poetry (backend), npm (frontend)
-- Must use `poetry run` — uvicorn/fastapi are NOT in system Python
-
-### Database
-- PostgreSQL, local DB: `nba_stats`
-- Default connection: `postgresql://postgres:BigStink44@localhost/nba_stats`
-- Override with `DATABASE_URL` env var
-- Tables: `player_stats`, `player_game_log`, `team_info`, `prize_picks_props`, `player_stats_calculated`
-
-### Commands
 ```bash
-# Backend server
-PYTHONIOENCODING=utf-8 poetry run uvicorn alphabetter.nba_backend.main:app --reload --host 127.0.0.1 --port 8000
+# Backend (if not running)
+PYTHONIOENCODING=utf-8 poetry run uvicorn alphabetter.nba_backend.main:app --host 127.0.0.1 --port 8000
 
-# Full data refresh pipeline
-PYTHONIOENCODING=utf-8 poetry run python -m alphabetter.nba_backend.fetch_and_calculate_all
-
-# Init DB tables
-PYTHONIOENCODING=utf-8 poetry run python -m alphabetter.nba_backend.init_db
-
-# Frontend
+# Frontend (if not running)
 cd alphabetter/nba_frontend/my-react-ts-project && npm run dev
 ```
 
-### Architecture (data flow)
-1. `gen_prizepicks_json.py` hits PrizePicks API → writes `prizepicks_props.json`
-2. `get_props.py` parses JSON into `Prop` objects
-3. `fetch_and_store_player_stats.py` hits NBA API for each player's 2024-25 game logs
-4. `calculate_and_store_lastx.py` computes L5/L10/L20 hit rates + `last_percent`
-5. FastAPI serves results to the React frontend
+---
 
-### Key business logic
-- **`last_percent`**: finds best hit rate from game 0 expanding outward; ignores 100% windows ≤5 games unless followed by 2 losses
-- **`STAT_MAPPING`**: maps PrizePicks stat names → `PlayerGameLog` column names; combined stats (e.g. `"Pts+Rebs+Asts"`) are lists, summed at query time
-- Season hardcoded to `'2024-25'` in `fetch_and_store_player_stats.py`
-- `Fantasy Score` and `Dunks` props are skipped (unsupported)
-- NBA API rate limits require `time.sleep(0.2–1.0)` between calls
+## MLB Feature — Mid-Implementation (PICK UP HERE)
 
-### What was done this session
-1. Created `CLAUDE.md` with architecture docs and commands
-2. Confirmed backend works (`poetry run uvicorn`)
-3. Started frontend dev server
-4. Kicked off full data refresh pipeline (still running when handoff was made)
+MLB support was started and partially committed. Pick up from step 4.
+
+### ✅ Already done and committed
+
+1. **`models.py`** — `MLBPlayerGameLog` table added; `sport` column added to `PrizePicksProp` and `PlayerStatsCalculated`
+2. **`fetch_player_stats_espn_mlb.py`** — Full ESPN MLB fetcher: roster map, batting/pitching game logs, `store_mlb_player_stats()`
+3. **`stat_collector/mlb_stat_mapping.py`** — `MLB_STAT_MAPPING`, `MLB_UNSUPPORTED_STATS`, `_get_mlb_stat_value()`, `_is_mlb_active()`
+
+### ❌ Still to do
+
+**4. DB migration** — Run these against the local `nba_stats` database, then run `init_db.py`:
+```sql
+ALTER TABLE prize_picks_props ADD COLUMN IF NOT EXISTS sport VARCHAR DEFAULT 'NBA';
+ALTER TABLE player_stats_calculated ADD COLUMN IF NOT EXISTS sport VARCHAR DEFAULT 'NBA';
+```
+Then: `PYTHONIOENCODING=utf-8 poetry run python -m alphabetter.nba_backend.init_db`
+(This creates `mlb_player_game_log` since `create_all` picks up the new model.)
+
+**5. `gen_prizepicks_json.py`** — Add `league_id` parameter. Create `gen_mlb_prizepicks_json()` using `league_id=2`.
+
+**6. `calculate_and_store_lastx.py`** — Add `calculate_mlb_hit_rates(session, prop)` that queries `MLBPlayerGameLog` and uses `_get_mlb_stat_value()` / `_is_mlb_active()` from `mlb_stat_mapping.py`. Mirrors existing `calculate_hit_rates()`.
+
+**7. `fetch_and_calculate_all.py`** — Add `run_mlb_pipeline()` function:
+- Fetch props with `league_id=2`, store with `sport="MLB"`
+- Build MLB ESPN player map, fetch/store game logs
+- Calculate hit rates with `calculate_mlb_hit_rates()`
+- Keep NBA pipeline (`run_nba_pipeline()`) independent — run each separately
+
+**8. `main.py`** — 
+- Add `?sport=` query param to `GET /api/props` for filtering
+- Update `GET /api/last_x/{prop_id}/{num_games}` to query `MLBPlayerGameLog` when `prop.sport == "MLB"`
+- Add `POST /api/run_mlb_pipeline` endpoint
+
+**9. Frontend** — Add sport tabs to Props page and Players page:
+- Tabs: `All | NBA | MLB` (show only tabs that have data)
+- Filter props by `prop.sport` when a tab is selected
+- Autocomplete on Players page should respect the selected sport tab
+
+---
+
+## Key MLB Facts (Researched This Session)
+
+| Item | Value |
+|------|-------|
+| PrizePicks league_id | `2` |
+| ESPN URL pattern | Same as NBA — replace `basketball/nba` with `baseball/mlb` |
+| Category param | `?category=batting` or `?category=pitching` |
+| Pitcher detection | Position abbreviation in `{"SP", "RP", "CP", "P"}` |
+| Pitching outs formula | `floor(ip)*3 + round((ip%1)*10)` e.g. 6.1 IP = 19 outs |
+
+**ESPN batting labels:** `AB, R, H, 2B, 3B, HR, RBI, BB, HBP, SO, SB, CS, AVG, OBP, SLG, OPS`
+
+**ESPN pitching labels:** `IP, H, R, ER, HR, BB, K, GB, FB, P, TBF, GSC, Dec, Rel, ERA`
+
+**All MLB PrizePicks stat types:**
+Hits, Home Runs, RBIs, Runs, Stolen Bases, Hitter Strikeouts, Walks, Doubles, Triples, Singles, Total Bases, Hits+Runs+RBIs, Pitcher Strikeouts, Pitching Outs, Earned Runs Allowed, Hits Allowed, Walks Allowed, 1st Inning Runs Allowed (unsupported)
+
+**Other live PrizePicks leagues found:** PGA(1), WNBA(3), NASCAR(4), Tennis(5), NHL(8), NFL(9), UFC(12)
+
+---
+
+## What Was Completed This Session
+
+- Replaced broken NBA API with ESPN undocumented API
+- Full dark-theme frontend redesign (Tailwind CSS)
+- Props page: hit rate bars, search/filter, clickable sort headers, season avg in modal, refresh button
+- Players page: autocomplete search, active props + game log combined view
+- Fixed 10+ bugs (stat mapping, double-double, bar colors, DNP rows, etc.)
+- Security audit fixes: CORS, removed hardcoded credentials, removed debug endpoints, input validation
+- Deployment config: `Procfile`, `railway.json`, `vercel.json`, `runtime.txt`
+- `VITE_API_URL` env var wired through all frontend components
+- CLAUDE.md fully rewritten to reflect current state
