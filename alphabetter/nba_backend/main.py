@@ -31,10 +31,10 @@ async def get_player_gamelogs(
     player_name: str = Path(..., max_length=100),
     db: Session = Depends(get_db)
 ):
-    game_logs = fetch_player_gamelogs(player_name, db)
-    if game_logs is None:
+    result = fetch_player_gamelogs(player_name, db)
+    if result is None:
         return {"message": f"Player '{player_name}' not found."}
-    return {"game_logs": game_logs}
+    return result
 
 @app.post("/api/fetch_and_calculate_all_bg")
 def run_pipeline_background(background_tasks: BackgroundTasks):

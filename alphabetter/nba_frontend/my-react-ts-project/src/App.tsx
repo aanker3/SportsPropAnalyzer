@@ -1,7 +1,6 @@
 import { BrowserRouter as Router, Route, Routes, Link, Navigate, useLocation } from 'react-router-dom';
 import PlayerProps from './PlayerProps';
 import Players from './Players';
-import PlayerStats from './PlayerStats';
 
 const SPORT_LINKS = [
   { to: '/nba', label: 'NBA', icon: '🏀' },
@@ -10,7 +9,6 @@ const SPORT_LINKS = [
 
 const PAGE_LINKS = [
   { to: '/players', label: 'Players' },
-  { to: '/player-stats', label: 'Stat Lookup' },
 ];
 
 function NavBar() {
@@ -73,7 +71,6 @@ function App() {
             <Route path="/nba" element={<PlayerProps sport="NBA" />} />
             <Route path="/mlb" element={<PlayerProps sport="MLB" />} />
             <Route path="/players" element={<Players />} />
-            <Route path="/player-stats" element={<PlayerStats />} />
           </Routes>
         </main>
       </div>
