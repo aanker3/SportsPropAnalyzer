@@ -176,7 +176,13 @@ export default function PlayerProps({ sport }: { sport: 'NBA' | 'MLB' }) {
       .sort((a, b) => {
         const sa = stats[a.id]?.[sortKey] ?? 0;
         const sb = stats[b.id]?.[sortKey] ?? 0;
-        return sortDir === 'desc' ? sb - sa : sa - sb;
+        if (sa !== sb) return sortDir === 'desc' ? sb - sa : sa - sb;
+        if (sortKey === 'last_percent_rate') {
+          const denomA = parseInt(stats[a.id]?.last_percent_total?.split('/')[1] ?? '0', 10);
+          const denomB = parseInt(stats[b.id]?.last_percent_total?.split('/')[1] ?? '0', 10);
+          return sortDir === 'desc' ? denomB - denomA : denomA - denomB;
+        }
+        return 0;
       });
   }, [props, stats, search, oddsFilter, sortKey, sortDir, sport]);
 
@@ -232,8 +238,9 @@ export default function PlayerProps({ sport }: { sport: 'NBA' | 'MLB' }) {
       }
     }
 
-    const labels = result.game_logs.map((l: GameLog) => `${l.game_date}  ${l.matchup}`);
-    const values = result.game_logs.map((l: GameLog) => l.stat_value);
+    const activeLogs = result.game_logs.filter((l: GameLog) => l.game_minutes > 0);
+    const labels = activeLogs.map((l: GameLog) => `${l.game_date}  ${l.matchup}`);
+    const values = activeLogs.map((l: GameLog) => l.stat_value);
     const target = result.prop.target;
     const isOver = result.prop.over_under === 'over';
     const colors = values.map((v: number) => (isOver ? v >= target : v <= target)
@@ -260,8 +267,10 @@ export default function PlayerProps({ sport }: { sport: 'NBA' | 'MLB' }) {
         tooltip: {
           callbacks: {
             label: (ctx: any) => {
-              const log = result.game_logs[ctx.dataIndex];
-              return [`${result.prop.stat}: ${ctx.raw}`, `Min: ${log.game_minutes}`];
+              const log = activeLogs[ctx.dataIndex];
+              const lines: string[] = [`${result.prop.stat}: ${ctx.raw}`];
+              if (sport === 'NBA') lines.push(`Min: ${log.game_minutes}`);
+              return lines;
             },
           },
         },

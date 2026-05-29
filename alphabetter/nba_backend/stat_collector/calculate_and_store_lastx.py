@@ -113,7 +113,10 @@ def calculate_hit_rates(session: Session, prop: PrizePicksProp):
     target = prop.target
     over_under = prop.over_under
     odds_type = prop.odds_type
-    stat = STAT_MAPPING.get(prop.stat, "pts")
+    stat = STAT_MAPPING.get(prop.stat)
+    if stat is None:
+        print(f"No NBA stat mapping for '{prop.stat}', skipping.")
+        return None
 
     print(f"Calculating hit rates for {player_name} on {prop.stat} with odds_type: {odds_type}")
 
@@ -267,7 +270,9 @@ def calculate_and_store_stats_bulk(session: Session, props: list):
         player_logs = [log for log in player_game_logs if log.player_id == prop.player_id]
 
         # Perform calculations
-        prop_stat = STAT_MAPPING.get(prop.stat, "pts")
+        prop_stat = STAT_MAPPING.get(prop.stat)
+        if prop_stat is None:
+            continue
         l5_hit_rate = _calc_hit_rate(player_logs[:5], prop.target, prop.over_under, prop_stat)
         l10_hit_rate = _calc_hit_rate(player_logs[:10], prop.target, prop.over_under, prop_stat)
         l20_hit_rate = _calc_hit_rate(player_logs[:20], prop.target, prop.over_under, prop_stat)
