@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, Float, Date
+from sqlalchemy import Column, Integer, String, Float, Date, Boolean
 from alphabetter.nba_backend.database import Base
 from enum import Enum
+
 
 class PlayerStats(Base):
     __tablename__ = "player_stats"
@@ -14,7 +15,9 @@ class PlayerStats(Base):
     assists_per_game = Column(Float)
     rebounds_per_game = Column(Float)
 
+
 class PlayerGameLog(Base):
+    """NBA game log — one row per player per game."""
     __tablename__ = "player_game_log"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -22,7 +25,6 @@ class PlayerGameLog(Base):
     team_id = Column(Integer)
     game_date = Column(Date)
     matchup = Column(String)
-    # wl = Column(String)
     min = Column(Float)
     pts = Column(Float)
     oreb = Column(Float)
@@ -42,6 +44,41 @@ class PlayerGameLog(Base):
     fta = Column(Float)
     ft_pct = Column(Float)
     pf = Column(Float)
+
+
+class MLBPlayerGameLog(Base):
+    """MLB game log — one row per player per game. Batting and pitching stats in same row."""
+    __tablename__ = "mlb_player_game_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    player_id = Column(Integer, index=True)
+    game_date = Column(Date)
+    matchup = Column(String)
+    is_pitcher = Column(Boolean, default=False)
+
+    # Batting stats
+    ab = Column(Float)
+    r = Column(Float)
+    h = Column(Float)
+    doubles = Column(Float)
+    triples = Column(Float)
+    hr = Column(Float)
+    rbi = Column(Float)
+    bb = Column(Float)
+    hbp = Column(Float)
+    so = Column(Float)
+    sb = Column(Float)
+    cs = Column(Float)
+
+    # Pitching stats
+    ip = Column(Float)          # Decimal innings: 6.1 = 6⅓ innings (6*3+1=19 outs)
+    hits_allowed = Column(Float)
+    runs_allowed = Column(Float)
+    er = Column(Float)
+    hr_allowed = Column(Float)
+    bb_allowed = Column(Float)
+    k = Column(Float)           # Pitcher strikeouts
+
 
 class TeamInfo(Base):
     __tablename__ = "team_info"
@@ -74,6 +111,7 @@ class TeamInfo(Base):
     pf = Column(Float)
     pts = Column(Float)
 
+
 class OddsType(Enum):
     STANDARD = "standard"
     DEMON = "demon"
@@ -81,11 +119,11 @@ class OddsType(Enum):
 
     @staticmethod
     def from_string(value: str) -> "OddsType":
-        """Convert a string to an OddsType enum, defaulting to STANDARD."""
         try:
             return OddsType(value.lower())
         except ValueError:
-            return OddsType.STANDARD  # Default if an unknown value appears
+            return OddsType.STANDARD
+
 
 class PrizePicksProp(Base):
     __tablename__ = "prize_picks_props"
@@ -96,8 +134,9 @@ class PrizePicksProp(Base):
     stat = Column(String)
     target = Column(Float)
     over_under = Column(String)
-    odds_type = Column(String)  # Store as string.  Convert laterfrom sqlalchemy import Column, Integer, Float, String
-from alphabetter.nba_backend.database import Base
+    odds_type = Column(String)
+    sport = Column(String, index=True, default="NBA")
+
 
 class PlayerStatsCalculated(Base):
     __tablename__ = "player_stats_calculated"
@@ -106,8 +145,9 @@ class PlayerStatsCalculated(Base):
     player_id = Column(Integer, index=True)
     player_name = Column(String, index=True)
     prop_id = Column(Integer, index=True)
+    sport = Column(String, index=True, default="NBA")
     l5_hit_rate = Column(Float)
     l10_hit_rate = Column(Float)
     l20_hit_rate = Column(Float)
-    last_percent_total = Column(String)      # Formatted string, e.g., "24/25"
-    last_percent_rate = Column(Float)        # Percentage as a decimal, e.g., 0.96
+    last_percent_total = Column(String)
+    last_percent_rate = Column(Float)
