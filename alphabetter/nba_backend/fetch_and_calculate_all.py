@@ -22,9 +22,13 @@ from alphabetter.nba_backend.database import get_db
 UNSUPPORTED_STATS = {
     "Fantasy Score",
     "Dunks",
+    # Per-period splits — ESPN game logs don't include period breakdowns
     "Points - 1st 3 Minutes",
     "Assists - 1st 3 Minutes",
     "Rebounds - 1st 3 Minutes",
+    # ESPN game logs only provide total REB, not the OREB/DREB split
+    "Offensive Rebounds",
+    "Defensive Rebounds",
 }
 
 def delete_all_rows(session: Session):

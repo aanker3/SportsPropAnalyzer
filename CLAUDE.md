@@ -38,6 +38,34 @@ To add a new source:
 
 ## Tech Stack
 
+## Short-Term Goals (priority order)
+
+### 1. Data quality
+- [x] Fix `oreb`/`dreb` — ESPN doesn't provide per-game offensive/defensive rebound splits. Mark "Offensive Rebounds" and "Defensive Rebounds" as unsupported so they don't show 0% hit rates.
+
+### 2. Deployment blockers
+- [x] Replace hardcoded `http://127.0.0.1:8000` with `VITE_API_URL` env var — set in `.env.local` for dev, Vercel dashboard for prod
+- [ ] Set up Railway (backend + PostgreSQL) and Vercel (frontend) — Story 13 in JIRA
+- [ ] Confirm `DATABASE_URL` env var is wired through in production
+
+### 3. Pipeline reliability
+- [ ] No-downtime refresh: fetch new data into staging tables, then swap — currently the DB is empty for ~30s mid-run (Stories 10/11 in JIRA)
+- [ ] Scheduled/automatic refresh — currently manual; should run on a cron or be triggerable from the UI
+- [ ] Crash recovery: if the pipeline dies mid-run the DB is left empty with no rollback
+
+### 4. Frontend UX gaps
+- [x] Refresh button in the UI (triggers POST `/api/fetch_and_calculate_all`)
+- [x] Season average shown in the modal next to the line, colored green/red vs the target
+- [x] Modal closes on Escape key
+
+### 5. Nice-to-haves
+- [ ] Player news / injury feed (Story 15 in JIRA)
+- [ ] Defensive matchup rankings — "Spurs give up most 3s" etc. (Story 9 in JIRA)
+
+---
+
+## Tech Stack
+
 - **Backend**: Python 3.10+, FastAPI, SQLAlchemy ORM, PostgreSQL
 - **Frontend**: React 19 + TypeScript, Vite, React Router, Axios, Chart.js
 - **Prop fetching**: Python (`gen_prizepicks_json.py`) hitting the PrizePicks public API

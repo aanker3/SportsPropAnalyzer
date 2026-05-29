@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import { Bar } from 'react-chartjs-2';
 import {
@@ -8,7 +8,8 @@ import annotationPlugin from 'chartjs-plugin-annotation';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, annotationPlugin);
 
-const API = 'http://127.0.0.1:8000';
+import API_URL from './api';
+const API = API_URL;
 
 interface Prop {
   id: number;
@@ -65,12 +66,44 @@ export default function PlayerProps() {
   const [chartData, setChartData] = useState<any>(null);
   const [chartOptions, setChartOptions] = useState<any>(null);
   const [chartKey, setChartKey] = useState(0);
+  const [seasonAvg, setSeasonAvg] = useState<number | null>(null);
   const [sliderValue, setSliderValue] = useState(10);
   const [sortKey, setSortKey] = useState<SortKey>('l10_hit_rate');
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
   const [search, setSearch] = useState('');
   const [oddsFilter, setOddsFilter] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshMsg, setRefreshMsg] = useState('');
+
+  const loadData = () => {
+    setLoading(true);
+    return Promise.all([
+      axios.get(`${API}/api/props`),
+      axios.get(`${API}/api/player-stats-calculated`),
+    ]).then(([propsRes, statsRes]) => {
+      setProps(propsRes.data.props);
+      const map: Record<number, Stat> = {};
+      statsRes.data.stats.forEach((s: Stat) => { map[s.prop_id] = s; });
+      setStats(map);
+      setLoading(false);
+    });
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    setRefreshMsg('Fetching latest props and stats… (this takes ~30s)');
+    try {
+      await axios.post(`${API}/api/fetch_and_calculate_all`);
+      setRefreshMsg('Done! Reloading data…');
+      await loadData();
+      setRefreshMsg('');
+    } catch {
+      setRefreshMsg('Refresh failed — check backend logs.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     Promise.all([
@@ -85,10 +118,21 @@ export default function PlayerProps() {
     });
   }, []);
 
-  const fetchChart = async (prop: Prop, games: number) => {
+  const fetchChart = async (prop: Prop, games: number, isNewProp = false) => {
     const res = await fetch(`${API}/api/last_x/${prop.id}/${games}`);
     const result = await res.json();
     if (!result.game_logs) return;
+
+    // Compute season average from full dataset on first open
+    if (isNewProp) {
+      const allRes = await fetch(`${API}/api/last_x/${prop.id}/82`);
+      const allResult = await allRes.json();
+      if (allResult.game_logs?.length) {
+        const active = allResult.game_logs.filter((l: GameLog) => l.game_minutes > 0);
+        const avg = active.length ? active.reduce((s: number, l: GameLog) => s + l.stat_value, 0) / active.length : 0;
+        setSeasonAvg(Math.round(avg * 10) / 10);
+      }
+    }
 
     const labels = result.game_logs.map((l: GameLog) => `${l.game_date}  ${l.matchup}`);
     const values = result.game_logs.map((l: GameLog) => l.stat_value);
@@ -137,9 +181,18 @@ export default function PlayerProps() {
     });
   };
 
+  const closeModal = () => { setSelectedProp(null); setSeasonAvg(null); };
+
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeModal(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const handleRowClick = (prop: Prop) => {
     setSelectedProp(prop);
-    fetchChart(prop, sliderValue);
+    setSeasonAvg(null);
+    fetchChart(prop, sliderValue, true);
   };
 
   const handleSlider = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -194,6 +247,18 @@ export default function PlayerProps() {
           ))}
         </div>
       )}
+
+      {/* Refresh */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="h-8 rounded-lg bg-gray-800 px-4 text-xs font-medium text-gray-300 hover:bg-gray-700 hover:text-white disabled:opacity-50 transition-colors"
+        >
+          {refreshing ? '↻ Refreshing…' : '↻ Refresh Props'}
+        </button>
+        {refreshMsg && <span className="text-xs text-gray-400">{refreshMsg}</span>}
+      </div>
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
@@ -293,7 +358,7 @@ export default function PlayerProps() {
       {/* Modal */}
       {selectedProp && (
         <>
-          <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm" onClick={() => setSelectedProp(null)} />
+          <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm" onClick={closeModal} />
           <div className="fixed left-1/2 top-1/2 z-50 w-[90vw] max-w-2xl -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-gray-700 bg-gray-900 p-6 shadow-2xl">
             {/* Modal header */}
             <div className="mb-4 flex items-start justify-between">
@@ -304,10 +369,15 @@ export default function PlayerProps() {
                   <span className={`ml-2 text-xs ${selectedProp.over_under === 'over' ? 'text-green-400' : 'text-red-400'}`}>
                     {selectedProp.over_under.toUpperCase()}
                   </span>
+                  {seasonAvg !== null && (
+                    <span className="ml-3 text-xs text-gray-500">
+                      Season avg: <span className={`font-mono ${seasonAvg >= selectedProp.target ? 'text-green-400' : 'text-red-400'}`}>{seasonAvg}</span>
+                    </span>
+                  )}
                 </p>
               </div>
               <button
-                onClick={() => setSelectedProp(null)}
+                onClick={closeModal}
                 className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-800 hover:text-white"
               >
                 ✕

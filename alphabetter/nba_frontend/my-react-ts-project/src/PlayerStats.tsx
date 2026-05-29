@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import API_URL from './api';
 import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend,
@@ -39,7 +40,7 @@ export default function PlayerStats() {
     if (!propId) return;
     setLoading(true);
     try {
-      const res = await window.fetch(`http://127.0.0.1:8000/api/last_x/${propId}/${lastX || 20}`);
+      const res = await window.fetch(`${API_URL}/api/last_x/${propId}/${lastX || 20}`);
       if (!res.ok) throw new Error(res.statusText);
       const json = await res.json();
       if (json.message) throw new Error(json.message);

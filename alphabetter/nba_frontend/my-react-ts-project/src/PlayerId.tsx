@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import API_URL from './api';
 
 function PlayerId() {
   const [playerName, setPlayerName] = useState('');
@@ -13,7 +14,7 @@ function PlayerId() {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    axios.get(`http://127.0.0.1:8000/api/player/${playerName}`)
+    axios.get(`${API_URL}/api/player/${playerName}`)
       .then(response => {
         if (response.data.error) {
           setError(response.data.error);
